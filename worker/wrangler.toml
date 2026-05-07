@@ -1,0 +1,22 @@
+name = "kirapass-api"
+main = "src/index.ts"
+compatibility_date = "2026-05-07"
+
+[observability]
+enabled = true
+
+[vars]
+ENVIRONMENT = "development"
+KIRAPAY_BASE_URL = "https://api.kira-pay.com/api"
+FRONTEND_URL = "http://localhost:3000"
+FRONTEND_ORIGIN = "http://localhost:3000"
+KIRAPAY_MOCK_MODE = "true"
+MERCHANT_WALLET_ADDRESS = "MERCHANT_WALLET_ADDRESS"
+SETTLEMENT_CHAIN_ID = "SOLANA_OR_SUPPORTED_SETTLEMENT_CHAIN_ID"
+SETTLEMENT_TOKEN_ADDRESS = "SETTLEMENT_TOKEN_ADDRESS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kirapass-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+preview_database_id = "kirapass-db-local"
