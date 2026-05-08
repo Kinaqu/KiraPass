@@ -18,5 +18,5 @@ SETTLEMENT_TOKEN_ADDRESS = "SETTLEMENT_TOKEN_ADDRESS"
 [[d1_databases]]
 binding = "DB"
 database_name = "kirapass-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "facddc65-c73c-471f-9c57-b7c41f0fbf68"
 preview_database_id = "kirapass-db-local"

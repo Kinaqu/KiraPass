@@ -127,6 +127,17 @@ curl -X POST http://localhost:8787/api/webhooks/kirapay \
 ```
 
 ## Cloudflare deployment
+### GitHub Actions deployment
+The repository includes `.github/workflows/deploy-cloudflare-worker.yml`. Add these GitHub repository secrets before running it:
+
+```bash
+CLOUDFLARE_API_TOKEN=...
+CLOUDFLARE_ACCOUNT_ID=...
+```
+
+The workflow applies D1 migrations and deploys `worker/src/index.ts` to Cloudflare.
+
+### Manual deployment
 Apply remote D1 migrations:
 
 ```bash

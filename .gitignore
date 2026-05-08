@@ -5,3 +5,4 @@ worker/.wrangler
 *.tsbuildinfo
 .env
 .dev.vars
+.vercel
