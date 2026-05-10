@@ -12,6 +12,9 @@ KIRAPAY_BASE_URL = "https://api.kira-pay.com/api"
 FRONTEND_URL = "https://kirapass.vercel.app"
 FRONTEND_ORIGIN = "https://kirapass.vercel.app"
 KIRAPAY_MOCK_MODE = "false"
+MERCHANT_WALLET_ADDRESS = "0x2b585891B9bc6183f70e12Ae6413280E3304Ac07"
+SETTLEMENT_CHAIN_ID = "8453"
+SETTLEMENT_TOKEN_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 
 [[d1_databases]]
 binding = "DB"
