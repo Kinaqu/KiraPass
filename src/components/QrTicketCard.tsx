@@ -32,6 +32,9 @@ export function QrTicketCard({ ticket }: { ticket: TicketPayload }) {
             <p className="text-sm text-white/58">{ticket.ticketCode}</p>
           </div>
         </div>
+        <p className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-semibold leading-6 text-emerald-50/76">
+          Issued after KIRAPAY confirmation. Scan this QR at the door to verify and check in once.
+        </p>
         <div className="mt-8 grid gap-4 text-sm text-white/72 sm:grid-cols-2">
           <p className="flex items-center gap-2">
             <CalendarDays className="size-4 text-emerald-200" />

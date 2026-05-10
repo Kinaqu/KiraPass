@@ -22,13 +22,15 @@ KiraPass adds a KIRAPAY checkout layer to event pages. KIRAPAY handles cross-cha
 
 ## Demo flow
 1. Open `/events/frontier-night` on the Vercel frontend.
-2. Choose General Pass or VIP Builder Pass.
-3. Enter an email and click **Buy with KIRAPAY**.
-4. The frontend calls the Cloudflare Worker, which creates the D1 order and KIRAPAY checkout link.
-5. After KIRAPAY webhook confirmation, open `/checkout/success?orderId=...`.
-6. View the QR ticket.
-7. Open `/organizer` to see paid attendees from D1.
-8. Scan or open `/verify/[ticketCode]` and check in the attendee.
+2. Use the concierge bar or scroll to tickets.
+3. Choose General Pass or VIP Builder Pass.
+4. Review the pass, buyer email, optional add-ons, and total in the checkout modal.
+5. Click **Continue to KIRAPAY checkout**.
+6. The frontend calls the Cloudflare Worker, which creates the D1 order and KIRAPAY checkout link.
+7. After KIRAPAY webhook confirmation, open `/checkout/success?orderId=...`.
+8. View the QR ticket.
+9. Open `/organizer` to see paid attendees from D1.
+10. Scan or open `/verify/[ticketCode]` and check in the attendee.
 
 ## Architecture
 - **Frontend:** Next.js App Router on Vercel.
@@ -171,10 +173,11 @@ NEXT_PUBLIC_KIRAPASS_API_URL=https://kirapass-api.<your-subdomain>.workers.dev
 1. Event organizers lose crypto buyers because users hold funds across many chains.
 2. KiraPass adds KIRAPAY-powered cross-chain checkout to any event landing page.
 3. The demo event is Frontier Night 2026, a Solana builder side event.
-4. The attendee selects General or VIP and pays with KIRAPAY.
-5. KIRAPAY confirms the transaction through a webhook to Cloudflare.
-6. Cloudflare Worker writes the paid order and QR ticket to D1.
-7. The Vercel frontend shows the issued QR ticket.
-8. The organizer dashboard reads attendees from D1.
-9. At the door, staff scan the QR and check in the attendee through the Worker.
-10. KIRAPAY is central: payment link, hosted checkout, webhook confirmation, transaction status, and optional refund infrastructure.
+4. The attendee can type intent into the concierge bar, such as “best networking” or “under $20.”
+5. The attendee reviews the pass and explicitly continues to KIRAPAY.
+6. KIRAPAY confirms the transaction through a webhook to Cloudflare.
+7. Cloudflare Worker writes the paid order and QR ticket to D1.
+8. The Vercel frontend shows the issued QR ticket.
+9. The organizer dashboard reads attendees from D1.
+10. At the door, staff scan the QR and check in the attendee through the Worker.
+11. KIRAPAY is central: payment link, hosted checkout, webhook confirmation, transaction status, and optional refund infrastructure.

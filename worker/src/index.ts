@@ -20,6 +20,13 @@ type Env = {
 type TicketType = "general" | "vip";
 type OrderStatus = "pending" | "paid" | "failed" | "refunded";
 type TicketStatus = "active" | "used" | "cancelled" | "refunded";
+type AddOnId = "livestream_replay" | "priority_checkin" | "sponsor_networking";
+
+type OrderAddOn = {
+  id: AddOnId;
+  label: string;
+  amount: number;
+};
 
 type OrderRow = {
   id: string;
@@ -28,6 +35,8 @@ type OrderRow = {
   buyer_wallet: string | null;
   ticket_type: TicketType;
   amount: number;
+  total_amount: number;
+  add_ons: string;
   currency: string;
   status: OrderStatus;
   custom_order_id: string;
@@ -59,7 +68,8 @@ const KIRAPAY_BASE_URL = "https://api.kira-pay.com/api";
 const checkoutSchema = z.object({
   buyerEmail: z.string().email(),
   buyerWallet: z.string().trim().optional(),
-  ticketType: z.enum(["general", "vip"])
+  ticketType: z.enum(["general", "vip"]),
+  addOns: z.array(z.enum(["livestream_replay", "priority_checkin", "sponsor_networking"])).default([])
 });
 
 const verifySchema = z.object({
@@ -147,13 +157,15 @@ async function createCheckout(rawInput: unknown, env: Env) {
   const input = checkoutSchema.parse(rawInput);
   const orderId = createId("order");
   const amount = getTicketPrice(input.ticketType);
+  const addOns = getAddOns(input.addOns);
+  const totalAmount = amount + addOns.reduce((sum, addOn) => sum + addOn.amount, 0);
   const now = isoNow();
 
   await env.DB.prepare(
     `INSERT INTO orders (
-      id, event_id, buyer_email, buyer_wallet, ticket_type, amount, currency, status,
+      id, event_id, buyer_email, buyer_wallet, ticket_type, amount, total_amount, add_ons, currency, status,
       custom_order_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, 'USD', 'pending', ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'USD', 'pending', ?, ?, ?)`
   )
     .bind(
       orderId,
@@ -162,6 +174,8 @@ async function createCheckout(rawInput: unknown, env: Env) {
       input.buyerWallet || null,
       input.ticketType,
       amount,
+      totalAmount,
+      JSON.stringify(addOns),
       orderId,
       now,
       now
@@ -176,7 +190,7 @@ async function createCheckout(rawInput: unknown, env: Env) {
         address: env.SETTLEMENT_TOKEN_ADDRESS
       },
       receiver: env.MERCHANT_WALLET_ADDRESS,
-      originalPrice: amount,
+      originalPrice: totalAmount,
       fiatCurrency: "USD",
       name: `KiraPass ${getTicketLabel(input.ticketType)} - Frontier Night 2026`,
       customOrderId: orderId,
@@ -196,7 +210,7 @@ async function createCheckout(rawInput: unknown, env: Env) {
     .run();
 
   const order = await getOrderById(orderId, env);
-  return { orderId, checkoutUrl: link.data.url, status: order?.status ?? "pending" };
+  return { orderId, checkoutUrl: link.data.url, status: order?.status ?? "pending", totalAmount };
 }
 
 async function processWebhook(rawPayload: unknown, env: Env) {
@@ -362,7 +376,7 @@ async function listAttendees(env: Env) {
     checkedIn: attendees.filter((row) => row.ticket?.checkedIn).length,
     revenue: attendees
       .filter((row) => row.order.status === "paid")
-      .reduce((sum, row) => sum + row.order.amount, 0)
+      .reduce((sum, row) => sum + row.order.totalAmount, 0)
   };
   return { metrics, attendees };
 }
@@ -570,6 +584,8 @@ function mapOrder(order: OrderRow) {
     buyerWallet: order.buyer_wallet,
     ticketType: order.ticket_type,
     amount: order.amount,
+    totalAmount: order.total_amount || order.amount,
+    addOns: parseOrderAddOns(order.add_ons),
     currency: order.currency,
     status: order.status,
     customOrderId: order.custom_order_id,
@@ -614,6 +630,8 @@ function mapAttendeeRow(row: Record<string, unknown>) {
     buyer_wallet: stringOrNull(row.buyer_wallet),
     ticket_type: String(row.ticket_type) as TicketType,
     amount: Number(row.amount),
+    total_amount: Number(row.total_amount || row.amount),
+    add_ons: String(row.add_ons ?? "[]"),
     currency: String(row.currency),
     status: String(row.status) as OrderStatus,
     custom_order_id: String(row.custom_order_id),
@@ -680,6 +698,21 @@ function getTicketPrice(ticketType: TicketType) {
 
 function getTicketLabel(ticketType: TicketType) {
   return ticketType === "vip" ? "VIP Builder Pass" : "General Pass";
+}
+
+const addOnCatalog: Record<AddOnId, OrderAddOn> = {
+  livestream_replay: { id: "livestream_replay", label: "Livestream replay access", amount: 5 },
+  priority_checkin: { id: "priority_checkin", label: "Priority check-in", amount: 8 },
+  sponsor_networking: { id: "sponsor_networking", label: "Sponsor networking list", amount: 10 }
+};
+
+function getAddOns(addOnIds: AddOnId[]) {
+  return [...new Set(addOnIds)].map((addOnId) => addOnCatalog[addOnId]);
+}
+
+function parseOrderAddOns(value: string) {
+  const parsed = parseMaybeJson(value);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function createId(prefix: string) {

@@ -19,6 +19,7 @@ export function VerifyPanel({ ticketCode }: { ticketCode: string }) {
   const [passcode, setPasscode] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; reason: string; ticket: PublicTicket | null } | null>(null);
+  const alreadyUsed = Boolean(result?.ticket?.checkedIn || result?.ticket?.status === "used");
 
   async function verify(checkIn: boolean) {
     setLoading(true);
@@ -68,7 +69,7 @@ export function VerifyPanel({ ticketCode }: { ticketCode: string }) {
         </button>
         <button
           onClick={() => verify(true)}
-          disabled={loading}
+          disabled={loading || alreadyUsed}
           className="inline-flex h-11 items-center gap-2 rounded-lg bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
         >
           Check in attendee
