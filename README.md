@@ -14,7 +14,7 @@ KiraPass adds a KIRAPAY checkout layer to event pages. KIRAPAY handles cross-cha
 ## How KIRAPAY is used
 1. Vercel frontend calls Cloudflare `POST /api/checkout/create`.
 2. Worker writes a pending order to D1.
-3. Worker calls KIRAPAY `POST https://api.kira-pay.com/api/link/generate` with `customOrderId`, ticket price, payment currency, receiver wallet, and frontend redirect URL.
+3. Worker calls KIRAPAY `POST https://api.kira-pay.com/api/link/generate` with `customOrderId`, ticket price, settlement token, receiver wallet, and frontend redirect URL.
 4. Attendee pays on the hosted KIRAPAY checkout page.
 5. KIRAPAY sends `transaction.succeeded` to Cloudflare `POST /api/webhooks/kirapay`.
 6. Worker verifies the webhook, marks the order paid, stores the transaction, and creates one QR ticket.
@@ -58,10 +58,11 @@ NEXT_PUBLIC_APP_URL=https://your-vercel-app.vercel.app
 FRONTEND_URL=https://your-vercel-app.vercel.app
 FRONTEND_ORIGIN=https://your-vercel-app.vercel.app
 KIRAPAY_BASE_URL=https://api.kira-pay.com/api
-KIRAPAY_CURRENCY=USDC
 KIRAPAY_API_KEY=...
 KIRAPAY_WEBHOOK_SECRET=...
 MERCHANT_WALLET_ADDRESS=...
+SETTLEMENT_CHAIN_ID=...
+SETTLEMENT_TOKEN_ADDRESS=...
 ORGANIZER_PASSCODE=...
 KIRAPAY_MOCK_MODE=false
 ENVIRONMENT=production
