@@ -1,19 +1,18 @@
 name = "kirapass-api"
 main = "src/index.ts"
 compatibility_date = "2026-05-07"
+account_id = "e3274a2e7b6c6a2b5e2d226d679ef696"
 
 [observability]
 enabled = true
 
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
 KIRAPAY_BASE_URL = "https://api.kira-pay.com/api"
-FRONTEND_URL = "http://localhost:3000"
-FRONTEND_ORIGIN = "http://localhost:3000"
-KIRAPAY_MOCK_MODE = "true"
-MERCHANT_WALLET_ADDRESS = "MERCHANT_WALLET_ADDRESS"
-SETTLEMENT_CHAIN_ID = "SOLANA_OR_SUPPORTED_SETTLEMENT_CHAIN_ID"
-SETTLEMENT_TOKEN_ADDRESS = "SETTLEMENT_TOKEN_ADDRESS"
+KIRAPAY_CURRENCY = "USDC"
+FRONTEND_URL = "https://kirapass.vercel.app"
+FRONTEND_ORIGIN = "https://kirapass.vercel.app"
+KIRAPAY_MOCK_MODE = "false"
 
 [[d1_databases]]
 binding = "DB"
