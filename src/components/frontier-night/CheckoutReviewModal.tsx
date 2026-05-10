@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, Loader2, X } from "lucide-react";
 import type { TicketType } from "@/types/domain";
 import { apiUrl } from "@/lib/api";
-import { ticketCatalog } from "@/lib/events";
+import { FRONTIER_EVENT_ID, ticketCatalog } from "@/lib/events";
 
 export const addOnCatalog = [
   { id: "livestream_replay", label: "Livestream replay access", amount: 5 },
@@ -54,6 +54,7 @@ export function CheckoutReviewModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          eventId: FRONTIER_EVENT_ID,
           buyerEmail: email,
           buyerWallet: wallet || undefined,
           ticketType,
