@@ -14,7 +14,7 @@ KiraPass adds a KIRAPAY checkout layer to event pages. KIRAPAY handles cross-cha
 ## How KIRAPAY is used
 1. Vercel frontend calls Cloudflare `POST /api/checkout/create`.
 2. Worker writes a pending order to D1.
-3. Worker calls KIRAPAY `POST /link/generate` with `customOrderId`, ticket price, settlement token, receiver wallet, and frontend redirect URL.
+3. Worker calls KIRAPAY `POST https://api.kira-pay.com/api/link/generate` with `customOrderId`, ticket price, settlement token, receiver wallet, and frontend redirect URL.
 4. Attendee pays on the hosted KIRAPAY checkout page.
 5. KIRAPAY sends `transaction.succeeded` to Cloudflare `POST /api/webhooks/kirapay`.
 6. Worker verifies the webhook, marks the order paid, stores the transaction, and creates one QR ticket.
@@ -41,7 +41,7 @@ KiraPass adds a KIRAPAY checkout layer to event pages. KIRAPAY handles cross-cha
 - **Ticket storage:** D1-backed QR tickets; future Solana NFT/compressed NFT minting can be added after payment confirmation.
 
 ## KIRAPAY routes used
-- `POST /link/generate`: create single-use checkout links.
+- `POST /link/generate`: create single-use checkout links. With `KIRAPAY_BASE_URL=https://api.kira-pay.com/api`, the final URL is `https://api.kira-pay.com/api/link/generate`.
 - `POST /api/webhooks/kirapay`: Cloudflare webhook receiver for KIRAPAY lifecycle events.
 - `POST /wallet/transactions/refund`: optional Cloudflare `/api/refund` route.
 - Wallet transaction APIs can be added later for reconciliation/reporting.
@@ -50,6 +50,7 @@ KiraPass adds a KIRAPAY checkout layer to event pages. KIRAPAY handles cross-cha
 ### Vercel frontend
 ```bash
 NEXT_PUBLIC_KIRAPASS_API_URL=https://kirapass-api.<your-subdomain>.workers.dev
+NEXT_PUBLIC_APP_URL=https://your-vercel-app.vercel.app
 ```
 
 ### Cloudflare Worker vars/secrets
@@ -59,6 +60,7 @@ FRONTEND_ORIGIN=https://your-vercel-app.vercel.app
 KIRAPAY_BASE_URL=https://api.kira-pay.com/api
 KIRAPAY_API_KEY=...
 KIRAPAY_WEBHOOK_SECRET=...
+KIRAPAY_WEBHOOK_URL=https://kirapass-api.<your-subdomain>.workers.dev/api/webhooks/kirapay
 MERCHANT_WALLET_ADDRESS=...
 SETTLEMENT_CHAIN_ID=...
 SETTLEMENT_TOKEN_ADDRESS=...
@@ -105,6 +107,12 @@ Configure KIRAPAY to send webhooks to:
 
 ```text
 https://kirapass-api.<your-subdomain>.workers.dev/api/webhooks/kirapay
+```
+
+After setting `KIRAPAY_API_KEY`, `KIRAPAY_WEBHOOK_SECRET`, `KIRAPAY_WEBHOOK_URL`, and `KIRAPAY_BASE_URL`, you can register/update the webhook endpoint with:
+
+```bash
+npm run kirapay:webhook:register
 ```
 
 The Worker accepts HMAC SHA-256 via `x-kirapay-signature` and a secret-header fallback via `x-webhook-secret` or `Authorization: Bearer ...`.

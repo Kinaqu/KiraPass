@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import type { TicketType } from "@/types/domain";
 import { apiUrl } from "@/lib/api";
+import { FRONTIER_EVENT_ID } from "@/lib/events";
 
 export function CheckoutButton({ ticketType }: { ticketType: TicketType }) {
   const [email, setEmail] = useState("");
@@ -18,7 +19,7 @@ export function CheckoutButton({ ticketType }: { ticketType: TicketType }) {
       const response = await fetch(apiUrl("/api/checkout/create"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ buyerEmail: email, buyerWallet: wallet || undefined, ticketType })
+        body: JSON.stringify({ eventId: FRONTIER_EVENT_ID, buyerEmail: email, buyerWallet: wallet || undefined, ticketType })
       });
       const payload = (await response.json()) as { checkoutUrl?: string; message?: string };
       if (!response.ok || !payload.checkoutUrl) throw new Error(payload.message ?? "Checkout failed");

@@ -75,9 +75,12 @@ export type KiraPayTransactionRecord = {
 export type WebhookEventRecord = {
   id: string;
   eventType: string;
+  orderId?: string | null;
   kirapayTransactionId?: string | null;
   rawPayload: unknown;
   processed: boolean;
+  processedAt?: string | null;
+  processingError?: string | null;
   createdAt: string;
 };
 

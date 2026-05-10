@@ -1,6 +1,6 @@
 import { frontierEvent, ticketCatalog } from "@/lib/events";
 
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://kirapass.vercel.app").replace(/\/$/, "");
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://kirapass.vercel.app").replace(/\/$/, "");
 const eventUrl = `${siteUrl}/events/frontier-night`;
 
 const eventJsonLd = {

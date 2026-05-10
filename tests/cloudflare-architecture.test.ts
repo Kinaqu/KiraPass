@@ -28,6 +28,9 @@ describe("Cloudflare backend architecture", () => {
     expect(migration).toContain("CREATE TABLE IF NOT EXISTS tickets");
     expect(migration).toContain("CREATE TABLE IF NOT EXISTS kirapay_transactions");
     expect(migration).toContain("CREATE TABLE IF NOT EXISTS webhook_events");
+    const hardeningMigration = readFileSync(join(process.cwd(), "worker/migrations/0003_kirapay_webhook_hardening.sql"), "utf8");
+    expect(hardeningMigration).toContain("processing_error");
+    expect(hardeningMigration).toContain("processed_at");
   });
 
   it("keeps KIRAPAY secrets out of client components", () => {

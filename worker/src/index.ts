@@ -47,6 +47,20 @@ type OrderRow = {
   updated_at: string;
 };
 
+type EventRow = {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  date: string;
+  location: string;
+  image_url: string | null;
+  general_price: number;
+  vip_price: number;
+  created_at: string;
+  updated_at: string;
+};
+
 type TicketRow = {
   id: string;
   order_id: string;
@@ -66,6 +80,7 @@ const FRONTIER_EVENT_ID = "event_frontier_night_2026";
 const KIRAPAY_BASE_URL = "https://api.kira-pay.com/api";
 
 const checkoutSchema = z.object({
+  eventId: z.string().optional().default(FRONTIER_EVENT_ID),
   buyerEmail: z.string().email(),
   buyerWallet: z.string().trim().optional(),
   ticketType: z.enum(["general", "vip"]),
@@ -137,10 +152,16 @@ export default {
       }
 
       if (path === "/api/organizer/attendees" && request.method === "GET") {
+        if (!isOrganizerAuthorized(request, env)) {
+          return json(request, env, { message: "ORGANIZER_UNAUTHORIZED" }, { status: 401 });
+        }
         return json(request, env, await listAttendees(env));
       }
 
       if (path === "/api/refund" && request.method === "POST") {
+        if (!isOrganizerAuthorized(request, env)) {
+          return json(request, env, { message: "ORGANIZER_UNAUTHORIZED" }, { status: 401 });
+        }
         return json(request, env, await refundTransaction(await request.json(), env), { status: 201 });
       }
 
@@ -155,8 +176,11 @@ export default {
 async function createCheckout(rawInput: unknown, env: Env) {
   await ensureSeedEvent(env);
   const input = checkoutSchema.parse(rawInput);
+  const event = await getEventById(input.eventId, env);
+  if (!event) throw new Error("EVENT_NOT_FOUND");
+
   const orderId = createId("order");
-  const amount = getTicketPrice(input.ticketType);
+  const amount = getTicketPrice(event, input.ticketType);
   const addOns = getAddOns(input.addOns);
   const totalAmount = amount + addOns.reduce((sum, addOn) => sum + addOn.amount, 0);
   const now = isoNow();
@@ -169,7 +193,7 @@ async function createCheckout(rawInput: unknown, env: Env) {
   )
     .bind(
       orderId,
-      FRONTIER_EVENT_ID,
+      event.id,
       input.buyerEmail.toLowerCase(),
       input.buyerWallet || null,
       input.ticketType,
@@ -192,14 +216,19 @@ async function createCheckout(rawInput: unknown, env: Env) {
       receiver: env.MERCHANT_WALLET_ADDRESS,
       originalPrice: totalAmount,
       fiatCurrency: "USD",
-      name: `KiraPass ${getTicketLabel(input.ticketType)} - Frontier Night 2026`,
+      name: `KiraPass ${getTicketLabel(input.ticketType)} - ${event.title}`,
       customOrderId: orderId,
       redirectUrl,
       type: "single_use",
       isViewAsCrypto: false
     },
     env
-  );
+  ).catch(async (error) => {
+    await env.DB.prepare("UPDATE orders SET status = 'failed', updated_at = ? WHERE id = ?")
+      .bind(isoNow(), orderId)
+      .run();
+    throw error;
+  });
 
   await env.DB.prepare(
     `UPDATE orders
@@ -230,13 +259,16 @@ async function processWebhook(rawPayload: unknown, env: Env) {
     return { ok: true, processed: false, ticketId: null };
   }
 
-  const orderRef = stringOrNull(data.customOrderId) ?? stringOrNull(data.orderId);
-  if (!orderRef) throw new Error("WEBHOOK_ORDER_REFERENCE_MISSING");
+  const order = await findOrderForWebhook(data, env);
+  if (!order) {
+    await markWebhookFailed(webhookId, "ORDER_REFERENCE_MISSING_OR_UNMATCHED", env);
+    return { ok: true, processed: false, ticketId: null, reason: "ORDER_REFERENCE_MISSING_OR_UNMATCHED" };
+  }
 
-  const order =
-    (await getOrderByCustomOrderId(orderRef, env)) ??
-    (await getOrderById(orderRef, env));
-  if (!order) throw new Error("ORDER_NOT_FOUND");
+  if (!isSuccessStatus(stringOrNull(data.status))) {
+    await markWebhookFailed(webhookId, "TRANSACTION_NOT_SUCCESSFUL", env);
+    return { ok: true, processed: false, ticketId: null, reason: "TRANSACTION_NOT_SUCCESSFUL" };
+  }
 
   await env.DB.prepare(
     `INSERT OR IGNORE INTO kirapay_transactions (
@@ -259,6 +291,11 @@ async function processWebhook(rawPayload: unknown, env: Env) {
     )
     .run();
 
+  if (order.status === "refunded" || order.status === "failed") {
+    await markWebhookFailed(webhookId, `ORDER_ALREADY_${order.status.toUpperCase()}`, env, order.id);
+    return { ok: true, processed: false, ticketId: null, reason: `ORDER_ALREADY_${order.status.toUpperCase()}` };
+  }
+
   if (order.status !== "paid") {
     await env.DB.prepare("UPDATE orders SET status = 'paid', updated_at = ? WHERE id = ?")
       .bind(isoNow(), order.id)
@@ -266,7 +303,9 @@ async function processWebhook(rawPayload: unknown, env: Env) {
   }
 
   const ticket = await createTicketIfMissing(order.id, env);
-  await env.DB.prepare("UPDATE webhook_events SET processed = 1 WHERE id = ?").bind(webhookId).run();
+  await env.DB.prepare("UPDATE webhook_events SET processed = 1, order_id = ?, processed_at = ?, processing_error = NULL WHERE id = ?")
+    .bind(order.id, isoNow(), webhookId)
+    .run();
   return { ok: true, processed: true, ticketId: ticket.id };
 }
 
@@ -365,11 +404,23 @@ async function listAttendees(env: Env) {
     FROM orders o
     JOIN events e ON e.id = o.event_id
     LEFT JOIN tickets t ON t.order_id = o.id
-    LEFT JOIN kirapay_transactions tx ON tx.order_id = o.id
+    LEFT JOIN kirapay_transactions tx ON tx.id = (
+      SELECT latest_tx.id
+      FROM kirapay_transactions latest_tx
+      WHERE latest_tx.order_id = o.id
+      ORDER BY latest_tx.created_at DESC
+      LIMIT 1
+    )
     ORDER BY o.created_at DESC`
   ).all<Record<string, unknown>>();
 
   const attendees = result.results.map(mapAttendeeRow);
+  const webhookResult = await env.DB.prepare(
+    `SELECT id, event_type, order_id, kirapay_transaction_id, raw_payload, processed, processed_at, processing_error, created_at
+      FROM webhook_events
+      ORDER BY created_at DESC
+      LIMIT 20`
+  ).all<Record<string, unknown>>();
   const metrics = {
     orders: attendees.length,
     paid: attendees.filter((row) => row.order.status === "paid").length,
@@ -378,13 +429,18 @@ async function listAttendees(env: Env) {
       .filter((row) => row.order.status === "paid")
       .reduce((sum, row) => sum + row.order.totalAmount, 0)
   };
-  return { metrics, attendees };
+  return { metrics, attendees, webhooks: webhookResult.results.map(mapWebhookEvent) };
 }
 
 async function refundTransaction(rawInput: unknown, env: Env) {
   const input = refundSchema.parse(rawInput);
+  const order = await getOrderById(input.orderId, env);
+  if (!order) throw new Error("ORDER_NOT_FOUND");
+  if (order.status !== "paid") throw new Error("ORDER_NOT_REFUNDABLE");
+
   const apiKey = requireEnv(env.KIRAPAY_API_KEY, "KIRAPAY_API_KEY");
-  const response = await fetch(`${trimSlash(env.KIRAPAY_BASE_URL ?? KIRAPAY_BASE_URL)}/wallet/transactions/refund`, {
+  const requestId = createId("refund_req");
+  const response = await fetch(kiraPayApiUrl(env, "/wallet/transactions/refund"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -395,22 +451,30 @@ async function refundTransaction(rawInput: unknown, env: Env) {
       txHash: input.txHash,
       amount: input.amount,
       reason: input.reason,
-      requestId: createId("refund_req"),
+      requestId,
       type: "Transfer"
     })
   });
-  const payload = await response.json().catch(() => null);
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
   if (!response.ok) throw new Error("KIRAPAY_REFUND_FAILED");
 
   const refundId = createId("refund");
+  const refundTxHash = stringOrNull(payload?.hash) ?? stringOrNull(payload?.txHash) ?? stringOrNull(payload?.data);
   await env.DB.prepare(
-    `INSERT INTO refunds (id, order_id, transaction_id, amount, reason, status, raw_payload, created_at)
-      VALUES (?, ?, ?, ?, ?, 'requested', ?, ?)`
+    `INSERT INTO refunds (id, order_id, transaction_id, refund_tx_hash, amount, reason, status, raw_payload, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'requested', ?, ?)`
   )
-    .bind(refundId, input.orderId, input.transactionId, input.amount, input.reason ?? null, JSON.stringify(payload), isoNow())
+    .bind(refundId, input.orderId, input.transactionId, refundTxHash, input.amount, input.reason ?? null, JSON.stringify(payload), isoNow())
     .run();
 
-  return { refundId, payload };
+  await env.DB.prepare("UPDATE orders SET status = 'refunded', updated_at = ? WHERE id = ?")
+    .bind(isoNow(), input.orderId)
+    .run();
+  await env.DB.prepare("UPDATE tickets SET status = 'refunded', updated_at = ? WHERE order_id = ?")
+    .bind(isoNow(), input.orderId)
+    .run();
+
+  return { refundId, requestId, payload };
 }
 
 type KiraPayLinkResult = {
@@ -421,6 +485,7 @@ type KiraPayLinkResult = {
     code?: string;
     id?: string;
     _id?: string;
+    raw?: unknown;
   };
 };
 
@@ -436,7 +501,7 @@ async function createKiraPayLink(input: Record<string, unknown>, env: Env): Prom
     };
   }
 
-  const response = await fetch(`${trimSlash(env.KIRAPAY_BASE_URL ?? KIRAPAY_BASE_URL)}/link/generate`, {
+  const response = await fetch(kiraPayApiUrl(env, "/link/generate"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -445,10 +510,11 @@ async function createKiraPayLink(input: Record<string, unknown>, env: Env): Prom
     body: JSON.stringify(input)
   });
   const payload = (await response.json().catch(() => null)) as
-    | { data?: { url?: string; price?: number; originalPrice?: number; code?: string; id?: string; _id?: string } }
+    | { data?: Record<string, unknown>; url?: string; checkoutUrl?: string }
     | null;
-  if (!response.ok || !payload?.data?.url) throw new Error("KIRAPAY_LINK_CREATE_FAILED");
-  return payload as { data: { url: string; price?: number; originalPrice?: number; code?: string; id?: string; _id?: string } };
+  const data = normalizeKiraPayLinkPayload(payload);
+  if (!response.ok || !data.url) throw new Error("KIRAPAY_LINK_CREATE_FAILED");
+  return { data };
 }
 
 async function createTicketIfMissing(orderId: string, env: Env): Promise<TicketRow> {
@@ -459,6 +525,7 @@ async function createTicketIfMissing(orderId: string, env: Env): Promise<TicketR
 
   const order = await getOrderById(orderId, env);
   if (!order) throw new Error("ORDER_NOT_FOUND");
+  if (order.status !== "paid") throw new Error("ORDER_NOT_PAID");
   const ticketCode = createTicketCode();
   const ticketId = createId("ticket");
   const now = isoNow();
@@ -493,6 +560,27 @@ async function getOrderById(orderId: string, env: Env) {
 
 async function getOrderByCustomOrderId(customOrderId: string, env: Env) {
   return env.DB.prepare("SELECT * FROM orders WHERE custom_order_id = ?").bind(customOrderId).first<OrderRow>();
+}
+
+async function getOrderByKiraPayLink(paymentLinkId: string | null, linkCode: string | null, env: Env) {
+  if (paymentLinkId) {
+    const order = await env.DB.prepare("SELECT * FROM orders WHERE kirapay_payment_link_id = ?")
+      .bind(paymentLinkId)
+      .first<OrderRow>();
+    if (order) return order;
+  }
+
+  if (linkCode) {
+    return env.DB.prepare("SELECT * FROM orders WHERE kirapay_link_code = ?")
+      .bind(linkCode)
+      .first<OrderRow>();
+  }
+
+  return null;
+}
+
+async function getEventById(eventId: string, env: Env) {
+  return env.DB.prepare("SELECT * FROM events WHERE id = ?").bind(eventId).first<EventRow>();
 }
 
 async function ensureSeedEvent(env: Env) {
@@ -570,7 +658,7 @@ function corsHeaders(request: Request, env: Env) {
   return {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization,x-webhook-secret,x-kirapay-signature",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,x-webhook-secret,x-kirapay-signature,x-organizer-passcode",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin"
   };
@@ -692,8 +780,22 @@ function mapAttendeeRow(row: Record<string, unknown>) {
   return { order, event, ticket, transaction };
 }
 
-function getTicketPrice(ticketType: TicketType) {
-  return ticketType === "vip" ? 35 : 15;
+function mapWebhookEvent(row: Record<string, unknown>) {
+  return {
+    id: String(row.id),
+    eventType: String(row.event_type),
+    orderId: stringOrNull(row.order_id),
+    kirapayTransactionId: stringOrNull(row.kirapay_transaction_id),
+    rawPayload: parseMaybeJson(row.raw_payload),
+    processed: Boolean(row.processed),
+    processedAt: stringOrNull(row.processed_at),
+    processingError: stringOrNull(row.processing_error),
+    createdAt: String(row.created_at)
+  };
+}
+
+function getTicketPrice(event: EventRow, ticketType: TicketType) {
+  return ticketType === "vip" ? Number(event.vip_price) : Number(event.general_price);
 }
 
 function getTicketLabel(ticketType: TicketType) {
@@ -713,6 +815,101 @@ function getAddOns(addOnIds: AddOnId[]) {
 function parseOrderAddOns(value: string) {
   const parsed = parseMaybeJson(value);
   return Array.isArray(parsed) ? parsed : [];
+}
+
+async function findOrderForWebhook(data: Record<string, unknown>, env: Env) {
+  const orderRef =
+    firstString(data, ["customOrderId", "custom_order_id", "orderId", "order_id", "merchantOrderId", "merchant_order_id"]) ??
+    nestedString(data, ["metadata", "customOrderId"]) ??
+    nestedString(data, ["metadata", "orderId"]) ??
+    nestedString(data, ["paymentLink", "customOrderId"]);
+
+  if (orderRef) {
+    const order = (await getOrderByCustomOrderId(orderRef, env)) ?? (await getOrderById(orderRef, env));
+    if (order) return order;
+  }
+
+  const paymentLinkId =
+    firstString(data, ["paymentLinkId", "payment_link_id", "payment_link", "linkId", "link_id"]) ??
+    nestedString(data, ["paymentLink", "id"]) ??
+    nestedString(data, ["paymentLink", "_id"]) ??
+    nestedString(data, ["link", "id"]) ??
+    nestedString(data, ["link", "_id"]);
+
+  const linkCode =
+    firstString(data, ["linkCode", "link_code", "paymentLinkCode", "payment_link_code", "code"]) ??
+    nestedString(data, ["paymentLink", "code"]) ??
+    nestedString(data, ["link", "code"]);
+
+  return getOrderByKiraPayLink(paymentLinkId, linkCode, env);
+}
+
+async function markWebhookFailed(webhookId: string, reason: string, env: Env, orderId?: string) {
+  await env.DB.prepare("UPDATE webhook_events SET order_id = ?, processing_error = ? WHERE id = ?")
+    .bind(orderId ?? null, reason, webhookId)
+    .run();
+}
+
+function isSuccessStatus(status: string | null) {
+  if (!status) return true;
+  return ["success", "succeeded", "paid", "confirmed", "complete", "completed"].includes(status.toLowerCase());
+}
+
+function normalizeKiraPayLinkPayload(payload: { data?: Record<string, unknown>; url?: string; checkoutUrl?: string } | null) {
+  const data = payload?.data ?? {};
+  return {
+    url:
+      stringOrNull(data.url) ??
+      stringOrNull(data.checkoutUrl) ??
+      stringOrNull(data.checkout_url) ??
+      stringOrNull(data.link) ??
+      stringOrNull(payload?.url) ??
+      stringOrNull(payload?.checkoutUrl) ??
+      "",
+    price: data.price,
+    originalPrice: data.originalPrice ?? data.original_price,
+    code: stringOrNull(data.code) ?? stringOrNull(data.linkCode) ?? stringOrNull(data.link_code) ?? undefined,
+    id: stringOrNull(data.id) ?? undefined,
+    _id: stringOrNull(data._id) ?? undefined,
+    raw: payload
+  };
+}
+
+function kiraPayApiUrl(env: Env, path: string) {
+  const base = trimSlash(env.KIRAPAY_BASE_URL ?? KIRAPAY_BASE_URL);
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${normalizedPath}`;
+}
+
+function isOrganizerAuthorized(request: Request, env: Env) {
+  if (!env.ORGANIZER_PASSCODE) return true;
+  const url = new URL(request.url);
+  const supplied =
+    request.headers.get("x-organizer-passcode") ??
+    url.searchParams.get("passcode") ??
+    bearerToken(request.headers.get("authorization"));
+  return Boolean(supplied && timingSafeEqual(supplied, env.ORGANIZER_PASSCODE));
+}
+
+function bearerToken(value: string | null) {
+  return value?.startsWith("Bearer ") ? value.slice("Bearer ".length) : null;
+}
+
+function firstString(data: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = stringOrNull(data[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function nestedString(data: Record<string, unknown>, path: string[]) {
+  let current: unknown = data;
+  for (const part of path) {
+    if (!current || typeof current !== "object") return null;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return stringOrNull(current);
 }
 
 function createId(prefix: string) {
