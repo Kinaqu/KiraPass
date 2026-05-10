@@ -13,6 +13,14 @@ describe("KIRAPAY integration guardrails", () => {
     expect(worker).not.toContain("/api/wallet/transactions/refund");
   });
 
+  it("uses the documented KIRAPAY payment link payload", () => {
+    expect(worker).toContain("price: totalAmount");
+    expect(worker).toContain('currency: env.KIRAPAY_CURRENCY ?? "USDC"');
+    expect(worker).toContain('receiver: requireEnv(env.MERCHANT_WALLET_ADDRESS, "MERCHANT_WALLET_ADDRESS")');
+    expect(worker).not.toContain("SETTLEMENT_CHAIN_ID");
+    expect(worker).not.toContain("SETTLEMENT_TOKEN_ADDRESS");
+  });
+
   it("keeps ticket issuance behind webhook-confirmed paid orders", () => {
     const successStatus = readFileSync(join(process.cwd(), "src/components/SuccessStatus.tsx"), "utf8");
     expect(successStatus).toContain("/api/orders/");

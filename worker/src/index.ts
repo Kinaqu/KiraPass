@@ -7,9 +7,8 @@ type Env = {
   KIRAPAY_API_KEY?: string;
   KIRAPAY_BASE_URL?: string;
   KIRAPAY_WEBHOOK_SECRET?: string;
-  MERCHANT_WALLET_ADDRESS: string;
-  SETTLEMENT_CHAIN_ID: string;
-  SETTLEMENT_TOKEN_ADDRESS: string;
+  KIRAPAY_CURRENCY?: string;
+  MERCHANT_WALLET_ADDRESS?: string;
   FRONTEND_URL: string;
   FRONTEND_ORIGIN?: string;
   ORGANIZER_PASSCODE?: string;
@@ -209,18 +208,12 @@ async function createCheckout(rawInput: unknown, env: Env) {
   const redirectUrl = `${trimSlash(env.FRONTEND_URL)}/checkout/success?orderId=${encodeURIComponent(orderId)}`;
   const link = await createKiraPayLink(
     {
-      tokenOut: {
-        chainId: env.SETTLEMENT_CHAIN_ID,
-        address: env.SETTLEMENT_TOKEN_ADDRESS
-      },
-      receiver: env.MERCHANT_WALLET_ADDRESS,
-      originalPrice: totalAmount,
-      fiatCurrency: "USD",
+      price: totalAmount,
+      currency: env.KIRAPAY_CURRENCY ?? "USDC",
+      receiver: requireEnv(env.MERCHANT_WALLET_ADDRESS, "MERCHANT_WALLET_ADDRESS"),
       name: `KiraPass ${getTicketLabel(input.ticketType)} - ${event.title}`,
       customOrderId: orderId,
-      redirectUrl,
-      type: "single_use",
-      isViewAsCrypto: false
+      redirectUrl
     },
     env
   ).catch(async (error) => {
@@ -245,7 +238,7 @@ async function createCheckout(rawInput: unknown, env: Env) {
 async function processWebhook(rawPayload: unknown, env: Env) {
   const parsed = webhookSchema.parse(rawPayload);
   const data = parsed.data as Record<string, unknown>;
-  const kirapayTransactionId = stringOrNull(data.id) ?? stringOrNull(data._id);
+  const kirapayTransactionId = stringOrNull(data.transactionId) ?? stringOrNull(data.id) ?? stringOrNull(data._id);
   const webhookId = createId("webhook");
 
   await env.DB.prepare(
@@ -282,10 +275,10 @@ async function processWebhook(rawPayload: unknown, env: Env) {
       kirapayTransactionId,
       stringOrNull(data.hash) ?? stringOrNull(data.transaction_hash),
       stringOrNull(data.status) ?? "Success",
-      numberOrNull(data.price),
+      numberOrNull(data.price) ?? numberOrNull(data.amount),
       numberOrNull(data.settlementAmount),
       stringOrNull(data.sender),
-      stringOrNull(data.recipient),
+      stringOrNull(data.recipient) ?? stringOrNull(data.receiver),
       JSON.stringify(data),
       isoNow()
     )
@@ -494,8 +487,7 @@ async function createKiraPayLink(input: Record<string, unknown>, env: Env): Prom
     return {
       data: {
         url: `${trimSlash(env.FRONTEND_URL)}/checkout/success?orderId=${input.customOrderId}&mock=1`,
-        price: input.originalPrice,
-        originalPrice: input.originalPrice,
+        price: input.price,
         code: `mock_${input.customOrderId}`
       }
     };
