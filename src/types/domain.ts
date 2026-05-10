@@ -2,6 +2,13 @@ export type TicketType = "general" | "vip";
 export type OrderStatus = "pending" | "paid" | "failed" | "refunded";
 export type TicketStatus = "active" | "used" | "cancelled" | "refunded";
 export type RefundStatus = "requested" | "succeeded" | "failed";
+export type AddOnId = "livestream_replay" | "priority_checkin" | "sponsor_networking";
+
+export type OrderAddOn = {
+  id: AddOnId;
+  label: string;
+  amount: number;
+};
 
 export type EventRecord = {
   id: string;
@@ -24,6 +31,8 @@ export type OrderRecord = {
   buyerWallet?: string | null;
   ticketType: TicketType;
   amount: number;
+  totalAmount: number;
+  addOns: OrderAddOn[];
   currency: string;
   status: OrderStatus;
   customOrderId: string;

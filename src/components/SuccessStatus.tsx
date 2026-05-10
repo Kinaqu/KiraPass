@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Loader2, TicketCheck } from "lucide-react";
+import { CheckCircle2, Clock3, Loader2, QrCode, TicketCheck } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { apiUrl } from "@/lib/api";
 
@@ -11,6 +11,7 @@ type OrderPayload = {
     id: string;
     status: string;
     amount: number;
+    totalAmount: number;
     currency: string;
     ticketType: string;
   };
@@ -68,12 +69,20 @@ export function SuccessStatus({ orderId }: { orderId?: string }) {
         <div>
           <p className="text-sm uppercase tracking-[0.22em] text-white/42">Order</p>
           <h1 className="mt-2 text-3xl font-black">{data.order.id}</h1>
+          <p className="mt-2 text-sm font-semibold text-white/54">
+            {data.order.ticketType} pass · ${data.order.totalAmount ?? data.order.amount} {data.order.currency}
+          </p>
         </div>
         <StatusBadge value={data.order.status} />
       </div>
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <StatusStep active done title="Order created" icon={Clock3} />
+        <StatusStep active={data.order.status === "paid"} done={data.order.status === "paid"} title="KIRAPAY confirmed" icon={CheckCircle2} />
+        <StatusStep active={Boolean(data.ticketId)} done={Boolean(data.ticketId)} title="Ticket issued" icon={QrCode} />
+      </div>
       <p className="mt-6 text-white/68">
-        KIRAPAY may have redirected you before the webhook reached KiraPass. This page only unlocks your
-        pass after the server receives a confirmed payment event.
+        KIRAPAY can redirect before the webhook reaches KiraPass. This page unlocks your pass only after the
+        server receives a confirmed payment event.
       </p>
       {data.ticketId ? (
         <Link
@@ -90,5 +99,24 @@ export function SuccessStatus({ orderId }: { orderId?: string }) {
         </div>
       )}
     </section>
+  );
+}
+
+function StatusStep({
+  active,
+  done,
+  title,
+  icon: Icon
+}: {
+  active: boolean;
+  done: boolean;
+  title: string;
+  icon: typeof Clock3;
+}) {
+  return (
+    <div className={`rounded-xl border p-3 ${active ? "border-emerald-300/25 bg-emerald-300/10" : "border-white/10 bg-white/[0.04]"}`}>
+      <Icon className={done ? "size-4 text-emerald-200" : "size-4 text-white/38"} />
+      <p className="mt-3 text-sm font-black">{title}</p>
+    </div>
   );
 }

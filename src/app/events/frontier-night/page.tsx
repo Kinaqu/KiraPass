@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
-  BadgeCheck,
   CalendarDays,
   CheckCircle2,
   CircleDot,
-  Clock3,
   Compass,
   Gem,
   MapPin,
@@ -21,8 +19,14 @@ import {
   Waypoints,
   Zap
 } from "lucide-react";
-import { CheckoutButton } from "@/components/CheckoutButton";
+import { CheckoutSteps } from "@/components/frontier-night/CheckoutSteps";
+import { ConciergeSection } from "@/components/frontier-night/ConciergeSection";
+import { EventStructuredData } from "@/components/frontier-night/EventStructuredData";
+import { FAQSection } from "@/components/frontier-night/FAQSection";
+import { QRVerificationPreview } from "@/components/frontier-night/QRVerificationPreview";
 import { SpotlightCard } from "@/components/frontier-night/SpotlightCard";
+import { TicketingExperience } from "@/components/frontier-night/TicketingExperience";
+import { TrustPaymentStrip } from "@/components/frontier-night/TrustPaymentStrip";
 
 export const metadata: Metadata = {
   title: "Frontier Night 2026 | KIRAPAY",
@@ -69,8 +73,8 @@ const accessLayer = [
 ];
 
 const details = [
-  { icon: CalendarDays, label: "Date", value: "TBA / 2026" },
-  { icon: MapPin, label: "Location", value: "TBA" },
+  { icon: CalendarDays, label: "Date", value: "May 18, 2026" },
+  { icon: MapPin, label: "Location", value: "Istanbul, Turkiye" },
   { icon: Sparkles, label: "Format", value: "Builder side event" },
   { icon: Users, label: "Audience", value: "Solana developers, founders, creators, ecosystem guests" },
   { icon: ShieldCheck, label: "Access", value: "Ticketed / invite-friendly" }
@@ -84,15 +88,10 @@ const agenda = [
   "After-hours connections"
 ];
 
-const ticketNotes = [
-  "General and VIP demo passes",
-  "KIRAPAY checkout creates the payment session",
-  "QR ticket is issued after confirmation"
-];
-
 export default function FrontierNightPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#03040a] text-white">
+      <EventStructuredData />
       <style>{`
         @keyframes frontier-marquee {
           from { transform: translateX(0); }
@@ -150,7 +149,7 @@ export default function FrontierNightPage() {
           href="#tickets"
           className="inline-flex h-11 items-center justify-center rounded-full border border-[#14f195]/35 bg-[#14f195]/12 px-5 text-sm font-black text-[#d9fff0] shadow-[0_0_34px_rgba(20,241,149,0.14)] transition hover:bg-[#14f195]/18 focus:outline-none focus:ring-2 focus:ring-[#14f195]/70"
         >
-          Get Access
+          Choose Pass
         </a>
       </header>
 
@@ -171,7 +170,7 @@ export default function FrontierNightPage() {
               href="#tickets"
               className="inline-flex h-13 items-center justify-center gap-2 rounded-full bg-[#14f195] px-7 text-sm font-black text-[#04110b] shadow-[0_0_42px_rgba(20,241,149,0.28)] transition hover:bg-[#7fffc8] focus:outline-none focus:ring-2 focus:ring-[#14f195]/70"
             >
-              Get Access <ArrowRight className="size-4" />
+              Choose Pass <ArrowRight className="size-4" />
             </a>
             <a
               href="#concept"
@@ -182,8 +181,8 @@ export default function FrontierNightPage() {
           </div>
           <div className="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
             {[
-              ["When", "2026"],
-              ["Where", "TBA"],
+              ["When", "May 18"],
+              ["Where", "Istanbul"],
               ["Access", "Ticketed"]
             ].map(([label, value]) => (
               <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 backdrop-blur">
@@ -196,6 +195,10 @@ export default function FrontierNightPage() {
 
         <HeroPass />
       </section>
+
+      <ConciergeSection />
+
+      <TrustPaymentStrip />
 
       <section className="relative z-10 border-y border-white/10 bg-white/[0.035] py-4 backdrop-blur">
         <div className="relative mx-auto max-w-7xl overflow-hidden px-5 sm:px-8">
@@ -291,7 +294,7 @@ export default function FrontierNightPage() {
             <h2 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Built for the side-event circuit.</h2>
           </div>
           <p className="max-w-sm text-sm leading-6 text-white/55">
-            Final venue and date will be published closer to the event window.
+            A fictional but realistic Solana builder night for the KiraPass hackathon demo.
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-5">
@@ -330,31 +333,13 @@ export default function FrontierNightPage() {
         </ol>
       </section>
 
-      <section id="tickets" className="relative z-10 mx-auto max-w-7xl px-5 py-4 sm:px-8">
-        <div className="grid gap-8 rounded-[2rem] border border-white/10 bg-white/[0.055] p-5 backdrop-blur-xl sm:p-8 lg:grid-cols-[0.86fr_1.14fr]">
-          <div className="flex flex-col justify-between gap-8">
-            <div>
-              <p className="text-sm font-black uppercase tracking-[0.24em] text-[#14f195]">Tickets</p>
-              <h2 className="mt-4 text-4xl font-black leading-tight tracking-tight sm:text-5xl">
-                Claim access to Frontier Night 2026.
-              </h2>
-              <p className="mt-5 text-lg leading-8 text-white/66">Cross-chain ticketing powered by KIRAPAY.</p>
-            </div>
-            <ul className="space-y-3">
-              {ticketNotes.map((note) => (
-                <li key={note} className="flex items-center gap-3 text-sm font-bold text-white/64">
-                  <CheckCircle2 className="size-4 text-[#14f195]" />
-                  {note}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <TicketPanel ticketType="general" title="General Pass" price="$15" tag="Builder access" />
-            <TicketPanel ticketType="vip" title="VIP Builder Pass" price="$35" tag="Priority access" featured />
-          </div>
-        </div>
-      </section>
+      <TicketingExperience />
+
+      <CheckoutSteps />
+
+      <QRVerificationPreview />
+
+      <FAQSection />
 
       <section className="relative z-10 mx-auto max-w-7xl px-5 py-20 sm:px-8">
         <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#090a13] p-8 text-center shadow-[0_36px_120px_rgba(20,241,149,0.12)] sm:p-12">
@@ -363,7 +348,9 @@ export default function FrontierNightPage() {
             <h2 className="text-4xl font-black leading-tight tracking-tight sm:text-6xl">
               Get access to Frontier Night 2026
             </h2>
-            <p className="mt-5 text-lg text-white/64">Cross-chain ticketing powered by KIRAPAY.</p>
+            <p className="mt-5 text-lg text-white/64">
+              Review your pass, continue to KIRAPAY, and get a QR ticket after confirmation.
+            </p>
             <a
               href="#tickets"
               className="mt-8 inline-flex h-13 items-center justify-center gap-2 rounded-full bg-[#14f195] px-7 text-sm font-black text-[#04110b] shadow-[0_0_42px_rgba(20,241,149,0.28)] transition hover:bg-[#7fffc8] focus:outline-none focus:ring-2 focus:ring-[#14f195]/70"
@@ -475,60 +462,5 @@ function AccessRail() {
         </div>
       </div>
     </div>
-  );
-}
-
-function TicketPanel({
-  ticketType,
-  title,
-  price,
-  tag,
-  featured = false
-}: {
-  ticketType: "general" | "vip";
-  title: string;
-  price: string;
-  tag: string;
-  featured?: boolean;
-}) {
-  return (
-    <article
-      className={
-        featured
-          ? "relative overflow-hidden rounded-[1.5rem] bg-[linear-gradient(90deg,#14f195,#9945ff,#14f195)] bg-[length:200%_200%] p-px [animation:frontier-border_6s_ease_infinite]"
-          : "relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#060711] p-px"
-      }
-    >
-      <div className="rounded-[calc(1.5rem-1px)] bg-[#060711] p-4">
-      <div className="relative rounded-[1.1rem] border border-white/10 bg-white/[0.04] p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-black text-white/52">{tag}</p>
-            <h3 className="mt-2 text-2xl font-black tracking-tight">{title}</h3>
-          </div>
-          {featured ? (
-            <span className="rounded-full bg-[#14f195] px-3 py-1 text-xs font-black text-[#04110b]">Featured</span>
-          ) : null}
-        </div>
-        <div className="mt-6 flex items-end gap-2">
-          <span className="text-5xl font-black tracking-tight">{price}</span>
-          <span className="pb-1 text-sm font-bold text-white/42">USD</span>
-        </div>
-        <div className="mt-6 space-y-2 text-sm font-bold text-white/62">
-          <p className="flex items-center gap-2">
-            <BadgeCheck className="size-4 text-[#14f195]" />
-            QR pass after payment confirmation
-          </p>
-          <p className="flex items-center gap-2">
-            <Clock3 className="size-4 text-[#14f195]" />
-            Demo checkout flow
-          </p>
-        </div>
-      </div>
-      <div className="relative p-4">
-        <CheckoutButton ticketType={ticketType} />
-      </div>
-      </div>
-    </article>
   );
 }
