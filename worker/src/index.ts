@@ -7,8 +7,9 @@ type Env = {
   KIRAPAY_API_KEY?: string;
   KIRAPAY_BASE_URL?: string;
   KIRAPAY_WEBHOOK_SECRET?: string;
-  KIRAPAY_CURRENCY?: string;
   MERCHANT_WALLET_ADDRESS?: string;
+  SETTLEMENT_CHAIN_ID?: string;
+  SETTLEMENT_TOKEN_ADDRESS?: string;
   FRONTEND_URL: string;
   FRONTEND_ORIGIN?: string;
   ORGANIZER_PASSCODE?: string;
@@ -208,12 +209,18 @@ async function createCheckout(rawInput: unknown, env: Env) {
   const redirectUrl = `${trimSlash(env.FRONTEND_URL)}/checkout/success?orderId=${encodeURIComponent(orderId)}`;
   const link = await createKiraPayLink(
     {
-      price: totalAmount,
-      currency: env.KIRAPAY_CURRENCY ?? "USDC",
+      tokenOut: {
+        chainId: requireEnv(env.SETTLEMENT_CHAIN_ID, "SETTLEMENT_CHAIN_ID"),
+        address: requireEnv(env.SETTLEMENT_TOKEN_ADDRESS, "SETTLEMENT_TOKEN_ADDRESS")
+      },
       receiver: requireEnv(env.MERCHANT_WALLET_ADDRESS, "MERCHANT_WALLET_ADDRESS"),
+      originalPrice: totalAmount,
+      fiatCurrency: "USD",
       name: `KiraPass ${getTicketLabel(input.ticketType)} - ${event.title}`,
       customOrderId: orderId,
-      redirectUrl
+      redirectUrl,
+      type: "single_use",
+      isViewAsCrypto: false
     },
     env
   ).catch(async (error) => {
@@ -487,7 +494,8 @@ async function createKiraPayLink(input: Record<string, unknown>, env: Env): Prom
     return {
       data: {
         url: `${trimSlash(env.FRONTEND_URL)}/checkout/success?orderId=${input.customOrderId}&mock=1`,
-        price: input.price,
+        price: input.originalPrice,
+        originalPrice: input.originalPrice,
         code: `mock_${input.customOrderId}`
       }
     };

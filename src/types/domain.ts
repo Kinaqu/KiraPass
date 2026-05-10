@@ -109,12 +109,18 @@ export type AttendeeRow = {
 };
 
 export type KiraPayCreateLinkRequest = {
-  price: number;
-  currency: string;
+  tokenOut: {
+    chainId: string;
+    address: string;
+  };
   receiver: string;
+  originalPrice: number;
+  fiatCurrency: "USD";
   name: string;
   customOrderId: string;
   redirectUrl: string;
+  type: "single_use";
+  isViewAsCrypto: boolean;
 };
 
 export type KiraPayCreateLinkResponse = {
@@ -123,6 +129,7 @@ export type KiraPayCreateLinkResponse = {
   data: {
     url: string;
     price?: number;
+    originalPrice?: number;
     code?: string;
     _id?: string;
     id?: string;

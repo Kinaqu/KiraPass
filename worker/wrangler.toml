@@ -9,7 +9,6 @@ enabled = true
 [vars]
 ENVIRONMENT = "production"
 KIRAPAY_BASE_URL = "https://api.kira-pay.com/api"
-KIRAPAY_CURRENCY = "USDC"
 FRONTEND_URL = "https://kirapass.vercel.app"
 FRONTEND_ORIGIN = "https://kirapass.vercel.app"
 KIRAPAY_MOCK_MODE = "false"
