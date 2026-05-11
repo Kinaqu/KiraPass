@@ -18,7 +18,7 @@ describe("KIRAPAY integration guardrails", () => {
     expect(worker).toContain('chainId: requireEnv(env.SETTLEMENT_CHAIN_ID, "SETTLEMENT_CHAIN_ID")');
     expect(worker).toContain('address: requireEnv(env.SETTLEMENT_TOKEN_ADDRESS, "SETTLEMENT_TOKEN_ADDRESS")');
     expect(worker).toContain('receiver: requireEnv(env.MERCHANT_WALLET_ADDRESS, "MERCHANT_WALLET_ADDRESS")');
-    expect(worker).toContain("const FRONTIER_DEMO_PAYMENT_DIVISOR = 100");
+    expect(worker).toContain("const FRONTIER_DEMO_PAYMENT_DIVISOR = 1000");
     expect(worker).toContain("const paymentTotalAmount = getKiraPayPaymentAmount(event.id, totalAmount)");
     expect(worker).toContain("originalPrice: paymentTotalAmount");
     expect(worker).toContain('fiatCurrency: "USD"');

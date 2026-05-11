@@ -78,7 +78,7 @@ type TicketRow = {
 
 const FRONTIER_EVENT_ID = "event_frontier_night_2026";
 const KIRAPAY_BASE_URL = "https://api.kira-pay.com/api";
-const FRONTIER_DEMO_PAYMENT_DIVISOR = 100;
+const FRONTIER_DEMO_PAYMENT_DIVISOR = 1000;
 
 const checkoutSchema = z.object({
   eventId: z.string().optional().default(FRONTIER_EVENT_ID),
