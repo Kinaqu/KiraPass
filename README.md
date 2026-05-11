@@ -16,8 +16,8 @@ KiraPass adds a KIRAPAY checkout layer to event pages. KIRAPAY handles cross-cha
 2. Worker writes a pending order to D1.
 3. Worker calls KIRAPAY `POST https://api.kira-pay.com/api/link/generate` with `customOrderId`, ticket price, settlement token, receiver wallet, and frontend redirect URL.
 4. Attendee pays on the hosted KIRAPAY checkout page.
-5. KIRAPAY sends `transaction.succeeded` to Cloudflare `POST /api/webhooks/kirapay`.
-6. Worker verifies the webhook, marks the order paid, stores the transaction, and creates one QR ticket.
+5. KIRAPAY sends a payment lifecycle webhook to Cloudflare `POST /api/webhooks/kirapay`.
+6. Worker verifies the webhook secret, reconciles the transaction against KIRAPAY wallet transactions, marks the order paid, stores the transaction, and creates one QR ticket.
 7. Organizer verifies and checks in the ticket through Cloudflare `POST /api/tickets/verify`.
 
 ## Demo flow
@@ -43,8 +43,9 @@ KiraPass adds a KIRAPAY checkout layer to event pages. KIRAPAY handles cross-cha
 ## KIRAPAY routes used
 - `POST /link/generate`: create single-use checkout links. With `KIRAPAY_BASE_URL=https://api.kira-pay.com/api`, the final URL is `https://api.kira-pay.com/api/link/generate`.
 - `POST /api/webhooks/kirapay`: Cloudflare webhook receiver for KIRAPAY lifecycle events.
+- `POST /api/reconcile/kirapay`: organizer-protected fallback reconciliation for paid KIRAPAY transactions whose webhook did not complete.
 - `POST /wallet/transactions/refund`: optional Cloudflare `/api/refund` route.
-- Wallet transaction APIs can be added later for reconciliation/reporting.
+- `GET /wallet/transactions`: used by the Worker to verify webhook-confirmed payments and reconcile pending orders.
 
 ## Environment variables
 ### Vercel frontend
@@ -115,6 +116,16 @@ npm run kirapay:webhook:register
 ```
 
 The Worker accepts HMAC SHA-256 via `x-kirapay-signature` and a secret-header fallback via `x-webhook-secret` or `Authorization: Bearer ...`.
+
+If KIRAPAY shows a payment link as paid/deactivated but KiraPass still shows the order as pending, run the organizer-protected reconciliation:
+
+```bash
+KIRAPASS_API_URL=https://kirapass-api.<your-subdomain>.workers.dev \
+ORGANIZER_PASSCODE=... \
+npm run kirapay:reconcile
+```
+
+The same action is available from `/organizer` through **Reconcile KIRAPAY**. It checks pending orders against KIRAPAY wallet transactions, validates the payment link/order reference and expected amount, then issues the QR ticket only for verified successful transactions.
 
 Sample local webhook:
 

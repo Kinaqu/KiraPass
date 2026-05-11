@@ -32,6 +32,7 @@ export type OrderRecord = {
   ticketType: TicketType;
   amount: number;
   totalAmount: number;
+  kirapayExpectedAmount?: number | null;
   addOns: OrderAddOn[];
   currency: string;
   status: OrderStatus;
@@ -153,7 +154,19 @@ export type KiraPayTransactionPayload = {
   orderId?: string;
   linkCode?: string;
   payment_link_id?: string;
+  paymentLinkId?: string;
+  paymentLinkCode?: string;
   link?: string;
+  paymentLink?: {
+    id?: string;
+    _id?: string;
+    code?: string;
+    customOrderId?: string;
+  };
+  metadata?: {
+    customOrderId?: string;
+    orderId?: string;
+  };
   createdAt?: string;
 };
 
