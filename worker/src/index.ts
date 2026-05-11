@@ -504,12 +504,13 @@ async function reconcilePendingKiraPayOrders(env: Env) {
       LIMIT 50`
   ).all<OrderRow>();
 
-  const transactions = await getRecentKiraPayTransactions(env);
+  const links = await getKiraPayLinks(env).catch(() => []);
+  const transactions = enrichTransactionsWithLinks(await getRecentKiraPayTransactions(env), links);
   const reconciled: Array<{ orderId: string; ticketId: string; transactionId: string | null }> = [];
   const skipped: Array<{ orderId: string; reason: string }> = [];
 
   for (const order of result.results) {
-    const orderForMatch = await ensureOrderKiraPayLinkIdentity(order, env);
+    const orderForMatch = await ensureOrderKiraPayLinkIdentity(order, env, links);
     const match = transactions.find((transaction) => transactionMatchesOrder(transaction, order) && isSuccessStatus(transaction.status));
     const resolvedMatch = match ?? transactions.find((transaction) => transactionMatchesOrder(transaction, orderForMatch) && isSuccessStatus(transaction.status));
     if (!resolvedMatch) {
@@ -613,6 +614,12 @@ type KiraPayLinkResult = {
 type KiraPayLinkIdentity = {
   code?: string;
   id?: string;
+  customOrderId?: string;
+};
+
+type KiraPayLinkRecord = KiraPayLinkIdentity & {
+  price: number | null;
+  url: string | null;
 };
 
 async function createKiraPayLink(input: Record<string, unknown>, env: Env): Promise<KiraPayLinkResult> {
@@ -643,13 +650,19 @@ async function createKiraPayLink(input: Record<string, unknown>, env: Env): Prom
   return { data };
 }
 
-async function getKiraPayLinkByCode(code: string, env: Env) {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (env.KIRAPAY_API_KEY) headers["x-api-key"] = env.KIRAPAY_API_KEY;
-  const response = await fetch(kiraPayApiUrl(env, `/link/${encodeURIComponent(code)}`), { headers });
-  const payload = (await response.json().catch(() => null)) as { data?: Record<string, unknown> } | null;
-  if (!response.ok || !payload?.data) throw new Error("KIRAPAY_LINK_LOOKUP_FAILED");
-  return payload.data;
+async function getKiraPayLinks(env: Env) {
+  const response = await fetch(kiraPayApiUrl(env, "/link?page=1&limit=100"), {
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": requireEnv(env.KIRAPAY_API_KEY, "KIRAPAY_API_KEY")
+    }
+  });
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!response.ok) throw new Error("KIRAPAY_LINKS_LOOKUP_FAILED");
+  const links = extractKiraPayList(payload, ["links", "paymentLinks", "payment_links"]);
+  return links
+    .filter((link): link is Record<string, unknown> => Boolean(link && typeof link === "object"))
+    .map(normalizeKiraPayLinkRecord);
 }
 
 async function getRecentKiraPayTransactions(env: Env) {
@@ -660,9 +673,9 @@ async function getRecentKiraPayTransactions(env: Env) {
       "x-api-key": apiKey
     }
   });
-  const payload = (await response.json().catch(() => null)) as { data?: { transactions?: unknown[] } } | null;
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
   if (!response.ok) throw new Error("KIRAPAY_TRANSACTION_LOOKUP_FAILED");
-  const transactions = Array.isArray(payload?.data?.transactions) ? payload.data.transactions : [];
+  const transactions = extractKiraPayList(payload, ["transactions", "items", "results"]);
   return transactions
     .filter((transaction): transaction is Record<string, unknown> => Boolean(transaction && typeof transaction === "object"))
     .map(normalizeKiraPayTransaction);
@@ -673,7 +686,8 @@ async function verifyKiraPayTransactionForOrder(webhookTransaction: KiraPayTrans
     return isSuccessStatus(webhookTransaction.status) ? webhookTransaction : null;
   }
 
-  const transactions = await getRecentKiraPayTransactions(env);
+  const links = await getKiraPayLinks(env).catch(() => []);
+  const transactions = enrichTransactionsWithLinks(await getRecentKiraPayTransactions(env), links);
   const verified = transactions.find((transaction) => {
     if (!isSuccessStatus(transaction.status)) return false;
     if (webhookTransaction.kirapayTransactionId && transaction.kirapayTransactionId === webhookTransaction.kirapayTransactionId) return true;
@@ -690,10 +704,14 @@ async function resolveKiraPayLinkIdentity(linkData: KiraPayLinkResult["data"], e
   const directId = linkData.id ?? linkData._id;
   if (directId || !code) return { code: code ?? undefined, id: directId };
 
-  const detail = await getKiraPayLinkByCode(code, env).catch(() => null);
-  const detailId = detail ? stringOrNull(detail.id) ?? stringOrNull(detail._id) : null;
-  const detailCode = detail ? stringOrNull(detail.code) : null;
-  return { code: detailCode ?? code, id: detailId ?? undefined };
+  const linkFromList = await getKiraPayLinks(env)
+    .then((links) => findKiraPayLinkByCode(links, code))
+    .catch(() => null);
+  return {
+    code: linkFromList?.code ?? code,
+    id: linkFromList?.id ?? undefined,
+    customOrderId: linkFromList?.customOrderId ?? undefined
+  };
 }
 
 function parseKiraPayLinkCode(url: string) {
@@ -769,18 +787,18 @@ async function getOrderByKiraPayLink(paymentLinkId: string | null, linkCode: str
   return null;
 }
 
-async function ensureOrderKiraPayLinkIdentity(order: OrderRow, env: Env): Promise<OrderRow> {
+async function ensureOrderKiraPayLinkIdentity(order: OrderRow, env: Env, links?: KiraPayLinkRecord[]): Promise<OrderRow> {
   if (order.kirapay_payment_link_id || !order.kirapay_link_code) return order;
 
-  const detail = await getKiraPayLinkByCode(order.kirapay_link_code, env).catch(() => null);
-  const paymentLinkId = detail ? stringOrNull(detail.id) ?? stringOrNull(detail._id) : null;
-  if (!paymentLinkId) return order;
+  const linkFromList = findKiraPayLinkByCode(links ?? [], order.kirapay_link_code);
+  if (linkFromList?.id) {
+    await env.DB.prepare("UPDATE orders SET kirapay_payment_link_id = ?, updated_at = ? WHERE id = ?")
+      .bind(linkFromList.id, isoNow(), order.id)
+      .run();
+    return { ...order, kirapay_payment_link_id: linkFromList.id };
+  }
 
-  await env.DB.prepare("UPDATE orders SET kirapay_payment_link_id = ?, updated_at = ? WHERE id = ?")
-    .bind(paymentLinkId, isoNow(), order.id)
-    .run();
-
-  return { ...order, kirapay_payment_link_id: paymentLinkId };
+  return order;
 }
 
 async function getEventById(eventId: string, env: Env) {
@@ -1035,11 +1053,15 @@ function getTicketPrice(event: EventRow, ticketType: TicketType) {
 
 function getKiraPayPaymentAmount(eventId: string, publicTotalAmount: number) {
   if (eventId !== FRONTIER_EVENT_ID) return roundCurrency(publicTotalAmount);
-  return roundCurrency(publicTotalAmount / FRONTIER_DEMO_PAYMENT_DIVISOR);
+  return roundTokenAmount(publicTotalAmount / FRONTIER_DEMO_PAYMENT_DIVISOR);
 }
 
 function roundCurrency(amount: number) {
   return Math.round(amount * 100) / 100;
+}
+
+function roundTokenAmount(amount: number) {
+  return Math.round(amount * 1_000_000) / 1_000_000;
 }
 
 function getTicketLabel(ticketType: TicketType) {
@@ -1104,11 +1126,71 @@ function normalizeKiraPayTransaction(data: Record<string, unknown>): KiraPayTran
   };
 }
 
+function normalizeKiraPayLinkRecord(data: Record<string, unknown>): KiraPayLinkRecord {
+  const url = firstString(data, ["url", "checkoutUrl", "checkout_url", "link"]);
+  return {
+    id: firstString(data, ["id", "_id"]) ?? undefined,
+    code: firstString(data, ["code", "linkCode", "link_code"]) ?? (url ? parseKiraPayLinkCode(url) ?? undefined : undefined),
+    customOrderId:
+      firstString(data, ["customOrderId", "custom_order_id", "orderId", "order_id", "merchantOrderId", "merchant_order_id"]) ??
+      nestedString(data, ["metadata", "customOrderId"]) ??
+      undefined,
+    price: numberOrNull(data.price) ?? numberOrNull(data.originalPrice) ?? numberOrNull(data.original_price),
+    url
+  };
+}
+
+function extractKiraPayList(payload: unknown, keys: string[]) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+
+  const root = payload as Record<string, unknown>;
+  for (const key of keys) {
+    if (Array.isArray(root[key])) return root[key] as unknown[];
+  }
+
+  const data = root.data;
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object") {
+    const dataRecord = data as Record<string, unknown>;
+    for (const key of keys) {
+      if (Array.isArray(dataRecord[key])) return dataRecord[key] as unknown[];
+    }
+    if (Array.isArray(dataRecord.items)) return dataRecord.items as unknown[];
+    if (Array.isArray(dataRecord.results)) return dataRecord.results as unknown[];
+  }
+
+  return [];
+}
+
+function enrichTransactionsWithLinks(transactions: KiraPayTransactionData[], links: KiraPayLinkRecord[]) {
+  if (links.length === 0) return transactions;
+  return transactions.map((transaction) => {
+    const link =
+      (transaction.paymentLinkId ? links.find((entry) => entry.id === transaction.paymentLinkId) : null) ??
+      (transaction.linkCode ? findKiraPayLinkByCode(links, transaction.linkCode) : null);
+    if (!link) return transaction;
+    return {
+      ...transaction,
+      paymentLinkId: transaction.paymentLinkId ?? link.id ?? null,
+      linkCode: transaction.linkCode ?? link.code ?? null,
+      customOrderId: transaction.customOrderId ?? link.customOrderId ?? null,
+      price: transaction.price ?? link.price,
+      raw: { ...transaction.raw, paymentLink: { id: link.id, code: link.code, customOrderId: link.customOrderId } }
+    };
+  });
+}
+
+function findKiraPayLinkByCode(links: KiraPayLinkRecord[], code: string) {
+  return links.find((link) => link.code === code || (link.url ? parseKiraPayLinkCode(link.url) === code : false)) ?? null;
+}
+
 function transactionMatchesOrder(transaction: KiraPayTransactionData, order: OrderRow) {
+  const orderLinkCode = getOrderKiraPayLinkCode(order);
   const matchesReference =
     (transaction.customOrderId !== null && (transaction.customOrderId === order.custom_order_id || transaction.customOrderId === order.id)) ||
     (transaction.paymentLinkId !== null && transaction.paymentLinkId === order.kirapay_payment_link_id) ||
-    (transaction.linkCode !== null && transaction.linkCode === order.kirapay_link_code);
+    (transaction.linkCode !== null && transaction.linkCode === orderLinkCode);
 
   if (!matchesReference) return false;
 
@@ -1119,7 +1201,11 @@ function transactionMatchesOrder(transaction: KiraPayTransactionData, order: Ord
 }
 
 function amountsMatch(actual: number, expected: number) {
-  return Math.abs(actual - expected) < 0.000001;
+  return Math.abs(actual - expected) < 0.000001 || Math.abs(actual - expected) <= 0.005;
+}
+
+function getOrderKiraPayLinkCode(order: OrderRow) {
+  return order.kirapay_link_code ?? (order.kirapay_checkout_url ? parseKiraPayLinkCode(order.kirapay_checkout_url) : null);
 }
 
 async function findOrderForWebhook(data: Record<string, unknown>, env: Env) {

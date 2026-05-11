@@ -35,6 +35,9 @@ describe("Cloudflare backend architecture", () => {
     const reconciliationMigration = readFileSync(join(process.cwd(), "worker/migrations/0004_kirapay_reconciliation.sql"), "utf8");
     expect(reconciliationMigration).toContain("kirapay_expected_amount");
     expect(reconciliationMigration).toContain("idx_orders_kirapay_payment_link_id");
+    const amountFixMigration = readFileSync(join(process.cwd(), "worker/migrations/0005_fix_kirapay_demo_amounts.sql"), "utf8");
+    expect(amountFixMigration).toContain("ROUND(total_amount / 1000.0, 6)");
+    expect(amountFixMigration).toContain("REPLACE(kirapay_checkout_url");
   });
 
   it("keeps KIRAPAY secrets out of client components", () => {
