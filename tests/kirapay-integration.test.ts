@@ -37,7 +37,24 @@ describe("KIRAPAY integration guardrails", () => {
     expect(worker).toContain("INSERT OR IGNORE INTO kirapay_transactions");
     expect(worker).toContain("SELECT * FROM tickets WHERE order_id = ?");
     expect(worker).toContain("findOrderForWebhook");
+    expect(worker).toContain('firstString(data, ["link"])');
+    expect(worker).toContain("directLinkId");
+    expect(worker).toContain("directLinkCode");
     expect(worker).toContain("getOrderByKiraPayLink");
     expect(worker).toContain("processing_error");
+  });
+
+  it("persists recoverable KIRAPAY link identity for redirect and webhook reconciliation", () => {
+    expect(worker).toContain("resolveKiraPayLinkIdentity(link.data, env)");
+    expect(worker).toContain("parseKiraPayLinkCode");
+    expect(worker).toContain('kiraPayApiUrl(env, `/link/${encodeURIComponent(code)}`)');
+    expect(worker).toContain("kirapay_link_code = ?");
+    expect(worker).toContain("kirapay_payment_link_id = ?");
+  });
+
+  it("exposes order lookup by email so pending payments are visible before QR issuance", () => {
+    expect(worker).toContain('if (path === "/api/orders" && request.method === "GET")');
+    expect(worker).toContain("getOrdersByEmail");
+    expect(worker).toContain("mapPublicOrderLookup");
   });
 });
