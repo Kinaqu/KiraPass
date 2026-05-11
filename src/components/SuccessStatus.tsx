@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CheckCircle2, Clock3, Loader2, QrCode, TicketCheck } from "lucide-react";
+import { MyTicketsLookup } from "@/components/MyTicketsLookup";
 import { StatusBadge } from "@/components/StatusBadge";
 import { apiUrl } from "@/lib/api";
 
@@ -47,11 +48,35 @@ export function SuccessStatus({ orderId }: { orderId?: string }) {
   }, [orderId]);
 
   if (!orderId) {
-    return <p className="glass rounded-2xl p-6 text-white/70">Missing order id.</p>;
+    return (
+      <section className="space-y-6">
+        <div className="glass rounded-2xl p-6">
+          <h2 className="text-2xl font-black">Find your checkout status</h2>
+          <p className="mt-3 leading-7 text-white/68">
+            KIRAPAY returned without an order id. Enter the same email you used at checkout to recover the order,
+            see pending webhook status, or open your QR ticket after it is issued.
+          </p>
+          <Link href="/events/frontier-night" className="mt-5 inline-flex rounded-lg border border-white/12 px-4 py-3 text-sm font-black text-white/76">
+            Back to Frontier Night
+          </Link>
+        </div>
+        <MyTicketsLookup />
+      </section>
+    );
   }
 
   if (error) {
-    return <p className="glass rounded-2xl p-6 text-red-100">{error}</p>;
+    return (
+      <section className="space-y-6">
+        <div className="glass rounded-2xl p-6">
+          <h2 className="text-2xl font-black text-red-100">Order lookup failed</h2>
+          <p className="mt-3 leading-7 text-white/68">
+            {error}. You can still recover your checkout by entering the same email used before KIRAPAY redirect.
+          </p>
+        </div>
+        <MyTicketsLookup />
+      </section>
+    );
   }
 
   if (!data) {
@@ -93,9 +118,14 @@ export function SuccessStatus({ orderId }: { orderId?: string }) {
           View QR ticket
         </Link>
       ) : (
-        <div className="mt-6 flex items-center gap-3 rounded-xl border border-yellow-300/20 bg-yellow-300/8 p-4 text-sm text-yellow-100">
-          <Loader2 className="size-4 animate-spin" />
-          Waiting for KIRAPAY webhook confirmation
+        <div className="mt-6 space-y-4">
+          <div className="flex items-center gap-3 rounded-xl border border-yellow-300/20 bg-yellow-300/8 p-4 text-sm text-yellow-100">
+            <Loader2 className="size-4 animate-spin" />
+            Waiting for KIRAPAY webhook confirmation
+          </div>
+          <Link href="/my-tickets" className="inline-flex rounded-lg border border-white/12 px-4 py-3 text-sm font-black text-white/76">
+            Find by email
+          </Link>
         </div>
       )}
     </section>

@@ -123,6 +123,11 @@ export default {
         return json(request, env, await createCheckout(await request.json(), env), { status: 201 });
       }
 
+      if (path === "/api/orders" && request.method === "GET") {
+        const email = url.searchParams.get("email");
+        return json(request, env, { orders: email ? await getOrdersByEmail(email, env) : [] });
+      }
+
       if (path === "/api/webhooks/kirapay" && request.method === "POST") {
         const rawBody = await request.text();
         if (!(await verifyKiraPayWebhook(request, rawBody, env))) {
@@ -231,13 +236,14 @@ async function createCheckout(rawInput: unknown, env: Env) {
       .run();
     throw error;
   });
+  const linkIdentity = await resolveKiraPayLinkIdentity(link.data, env);
 
   await env.DB.prepare(
     `UPDATE orders
       SET kirapay_checkout_url = ?, kirapay_link_code = ?, kirapay_payment_link_id = ?, updated_at = ?
       WHERE id = ?`
   )
-    .bind(link.data.url, link.data.code ?? null, link.data.id ?? link.data._id ?? null, isoNow(), orderId)
+    .bind(link.data.url, linkIdentity.code ?? null, linkIdentity.id ?? null, isoNow(), orderId)
     .run();
 
   const order = await getOrderById(orderId, env);
@@ -366,6 +372,24 @@ async function getTicketsByEmail(email: string, env: Env) {
   return result.results.map(mapTicketPayload);
 }
 
+async function getOrdersByEmail(email: string, env: Env) {
+  const result = await env.DB.prepare(
+    `SELECT
+      o.*,
+      e.title, e.date, e.location,
+      t.id AS ticket_id, t.ticket_code, t.status AS ticket_status, t.created_at AS ticket_created_at
+    FROM orders o
+    JOIN events e ON e.id = o.event_id
+    LEFT JOIN tickets t ON t.order_id = o.id
+    WHERE lower(o.buyer_email) = lower(?)
+    ORDER BY o.created_at DESC
+    LIMIT 20`
+  )
+    .bind(email)
+    .all<Record<string, unknown>>();
+  return result.results.map(mapPublicOrderLookup);
+}
+
 async function verifyTicket(rawInput: unknown, env: Env) {
   const input = verifySchema.parse(rawInput);
   if (env.ORGANIZER_PASSCODE && input.passcode !== env.ORGANIZER_PASSCODE) {
@@ -491,6 +515,11 @@ type KiraPayLinkResult = {
   };
 };
 
+type KiraPayLinkIdentity = {
+  code?: string;
+  id?: string;
+};
+
 async function createKiraPayLink(input: Record<string, unknown>, env: Env): Promise<KiraPayLinkResult> {
   if (env.KIRAPAY_MOCK_MODE === "true" || (!env.KIRAPAY_API_KEY && env.ENVIRONMENT !== "production")) {
     return {
@@ -517,6 +546,45 @@ async function createKiraPayLink(input: Record<string, unknown>, env: Env): Prom
   const data = normalizeKiraPayLinkPayload(payload);
   if (!response.ok || !data.url) throw new Error("KIRAPAY_LINK_CREATE_FAILED");
   return { data };
+}
+
+async function resolveKiraPayLinkIdentity(linkData: KiraPayLinkResult["data"], env: Env): Promise<KiraPayLinkIdentity> {
+  const code = linkData.code ?? parseKiraPayLinkCode(linkData.url);
+  const directId = linkData.id ?? linkData._id;
+  if (!code) return { id: directId };
+
+  const details = await getKiraPayLinkByCode(code, env).catch(() => null);
+  return {
+    code: details?.code ?? code,
+    id: details?.id ?? directId
+  };
+}
+
+async function getKiraPayLinkByCode(code: string, env: Env) {
+  const response = await fetch(kiraPayApiUrl(env, `/link/${encodeURIComponent(code)}`), {
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": requireEnv(env.KIRAPAY_API_KEY, "KIRAPAY_API_KEY")
+    }
+  });
+  const payload = (await response.json().catch(() => null)) as { data?: Record<string, unknown> } | null;
+  if (!response.ok) return null;
+  const data = payload?.data ?? {};
+  return {
+    code: stringOrNull(data.code) ?? code,
+    id: stringOrNull(data._id) ?? stringOrNull(data.id) ?? undefined
+  };
+}
+
+function parseKiraPayLinkCode(url: string) {
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    return segments.at(-1) ?? null;
+  } catch {
+    const segments = url.split("?")[0]?.split("/").filter(Boolean) ?? [];
+    return segments.at(-1) ?? null;
+  }
 }
 
 async function createTicketIfMissing(orderId: string, env: Env): Promise<TicketRow> {
@@ -712,6 +780,35 @@ function mapTicketPayload(row: Record<string, unknown>) {
   };
 }
 
+function mapPublicOrderLookup(row: Record<string, unknown>) {
+  return {
+    order: {
+      id: String(row.id),
+      buyerEmail: String(row.buyer_email),
+      ticketType: String(row.ticket_type),
+      amount: Number(row.amount),
+      totalAmount: Number(row.total_amount || row.amount),
+      currency: String(row.currency),
+      status: String(row.status),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at)
+    },
+    event: {
+      title: String(row.title),
+      date: String(row.date),
+      location: String(row.location)
+    },
+    ticket: row.ticket_id
+      ? {
+          id: String(row.ticket_id),
+          ticketCode: String(row.ticket_code),
+          status: String(row.ticket_status),
+          createdAt: String(row.ticket_created_at)
+        }
+      : null
+  };
+}
+
 function mapAttendeeRow(row: Record<string, unknown>) {
   const order = mapOrder({
     id: String(row.id),
@@ -829,6 +926,9 @@ function parseOrderAddOns(value: string) {
 }
 
 async function findOrderForWebhook(data: Record<string, unknown>, env: Env) {
+  const directLink = firstString(data, ["link"]);
+  const directLinkId = directLink && !directLink.startsWith("http") ? directLink : null;
+  const directLinkCode = directLink && directLink.startsWith("http") ? parseKiraPayLinkCode(directLink) : null;
   const orderRef =
     firstString(data, ["customOrderId", "custom_order_id", "orderId", "order_id", "merchantOrderId", "merchant_order_id"]) ??
     nestedString(data, ["metadata", "customOrderId"]) ??
@@ -842,6 +942,7 @@ async function findOrderForWebhook(data: Record<string, unknown>, env: Env) {
 
   const paymentLinkId =
     firstString(data, ["paymentLinkId", "payment_link_id", "payment_link", "linkId", "link_id"]) ??
+    directLinkId ??
     nestedString(data, ["paymentLink", "id"]) ??
     nestedString(data, ["paymentLink", "_id"]) ??
     nestedString(data, ["link", "id"]) ??
@@ -849,6 +950,7 @@ async function findOrderForWebhook(data: Record<string, unknown>, env: Env) {
 
   const linkCode =
     firstString(data, ["linkCode", "link_code", "paymentLinkCode", "payment_link_code", "code"]) ??
+    directLinkCode ??
     nestedString(data, ["paymentLink", "code"]) ??
     nestedString(data, ["link", "code"]);
 
