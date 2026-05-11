@@ -45,9 +45,9 @@ describe("KIRAPAY integration guardrails", () => {
   });
 
   it("persists recoverable KIRAPAY link identity for redirect and webhook reconciliation", () => {
-    expect(worker).toContain("resolveKiraPayLinkIdentity(link.data, env)");
+    expect(worker).toContain("resolveKiraPayLinkIdentity(link.data)");
     expect(worker).toContain("parseKiraPayLinkCode");
-    expect(worker).toContain('kiraPayApiUrl(env, `/link/${encodeURIComponent(code)}`)');
+    expect(worker).not.toContain('kiraPayApiUrl(env, `/link/${encodeURIComponent(code)}`)');
     expect(worker).toContain("kirapay_link_code = ?");
     expect(worker).toContain("kirapay_payment_link_id = ?");
   });
