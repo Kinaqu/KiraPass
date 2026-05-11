@@ -47,7 +47,9 @@ describe("KIRAPAY integration guardrails", () => {
   it("persists recoverable KIRAPAY link identity for redirect and webhook reconciliation", () => {
     expect(worker).toContain("resolveKiraPayLinkIdentity(link.data, env)");
     expect(worker).toContain("parseKiraPayLinkCode");
-    expect(worker).toContain('kiraPayApiUrl(env, `/link/${encodeURIComponent(code)}`)');
+    expect(worker).toContain('kiraPayApiUrl(env, "/link?page=1&limit=100")');
+    expect(worker).not.toContain("getKiraPayLinkByCode");
+    expect(worker).not.toContain("encodeURIComponent(code)");
     expect(worker).toContain("kirapay_link_code = ?");
     expect(worker).toContain("kirapay_payment_link_id = ?");
   });
@@ -61,8 +63,16 @@ describe("KIRAPAY integration guardrails", () => {
   it("verifies and reconciles KIRAPAY transactions before issuing tickets", () => {
     expect(worker).toContain("verifyKiraPayTransactionForOrder");
     expect(worker).toContain("getRecentKiraPayTransactions");
+    expect(worker).toContain("getKiraPayLinks");
+    expect(worker).toContain("extractKiraPayList");
+    expect(worker).toContain("enrichTransactionsWithLinks");
     expect(worker).toContain("transactionMatchesOrder");
     expect(worker).toContain('path === "/api/reconcile/kirapay"');
     expect(worker).toContain("reconcilePendingKiraPayOrders");
+  });
+
+  it("does not round demo crypto payment amounts to cents", () => {
+    expect(worker).toContain("roundTokenAmount(publicTotalAmount / FRONTIER_DEMO_PAYMENT_DIVISOR)");
+    expect(worker).toContain("Math.round(amount * 1_000_000) / 1_000_000");
   });
 });
