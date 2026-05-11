@@ -77,6 +77,9 @@ export function CheckoutReviewModal({
           <div>
             <p className="text-xs font-black uppercase tracking-[0.22em] text-[#14f195]">Review & Approve</p>
             <h2 className="mt-2 text-3xl font-black tracking-tight">Continue to KIRAPAY checkout</h2>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-white/58">
+              No charge happens here. Confirm your pass and email, then continue to KIRAPAY only when ready.
+            </p>
           </div>
           <button
             type="button"
@@ -125,10 +128,30 @@ export function CheckoutReviewModal({
               />
             </label>
           </div>
+          <div className="grid gap-3 border-t border-white/10 pt-4 text-sm sm:grid-cols-3">
+            <div>
+              <p className="text-white/42">Public price</p>
+              <p className="mt-1 font-black text-white">${ticket.amount} USD</p>
+            </div>
+            <div>
+              <p className="text-white/42">Status after return</p>
+              <p className="mt-1 font-black text-white">Pending until webhook</p>
+            </div>
+            <div>
+              <p className="text-white/42">Ticket delivery</p>
+              <p className="mt-1 font-black text-white">QR pass after payment</p>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <p className="text-sm font-black text-white/82">Optional add-ons</p>
+        <details className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <summary className="cursor-pointer list-none text-sm font-black text-white/82">
+            Optional demo add-ons
+            <span className="ml-2 text-xs font-bold uppercase tracking-[0.16em] text-white/42">not required</span>
+          </summary>
+          <p className="mt-2 text-sm leading-6 text-white/54">
+            Keep the core flow simple: pass, email, KIRAPAY, QR. Add-ons are only for showing server-side totals.
+          </p>
           <div className="mt-3 grid gap-2">
             {addOnCatalog.map((addOn) => (
               <label
@@ -148,7 +171,7 @@ export function CheckoutReviewModal({
               </label>
             ))}
           </div>
-        </div>
+        </details>
 
         <div className="mt-5 rounded-2xl border border-white/10 bg-black/24 p-4">
           <div className="space-y-2 text-sm">
@@ -165,13 +188,13 @@ export function CheckoutReviewModal({
                 </div>
               ))}
             <div className="flex justify-between border-t border-white/10 pt-3 text-lg font-black text-white">
-              <span>Total</span>
+              <span>Public total</span>
               <span>${total} USD</span>
             </div>
           </div>
           <div className="mt-4 flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-white/60">
             <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#14f195]" />
-            No automatic charge happens here. KiraPass creates a pending order, then KIRAPAY confirms payment by webhook before the QR ticket is issued.
+            KiraPass creates a pending order, redirects to KIRAPAY, then issues the QR ticket only after the KIRAPAY webhook confirms payment.
           </div>
         </div>
 

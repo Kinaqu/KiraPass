@@ -28,7 +28,8 @@ export function TicketComparison() {
           </span>
         </div>
       </div>
-      <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+      <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10">
+        <div className="min-w-[520px]">
         <div className="grid grid-cols-[1.3fr_0.85fr_0.85fr] bg-black/24 text-xs font-black uppercase tracking-[0.18em] text-white/42">
           <div className="p-3">Included</div>
           <div className="p-3">General</div>
@@ -45,6 +46,7 @@ export function TicketComparison() {
             </div>
           </div>
         ))}
+        </div>
       </div>
     </div>
   );

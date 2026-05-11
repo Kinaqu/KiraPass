@@ -4,17 +4,17 @@ const steps = [
   {
     icon: WalletCards,
     title: "Hosted KIRAPAY link",
-    body: "The Worker creates a single-use checkout link with the server-validated total."
+    body: "The Worker creates a single-use checkout link with the server-validated order."
   },
   {
     icon: Clock3,
     title: "Pending until webhook",
-    body: "The return page can show pending while Cloudflare waits for KIRAPAY."
+    body: "KIRAPAY may redirect before Cloudflare receives the confirmation webhook."
   },
   {
     icon: QrCode,
     title: "Ticket after confirmation",
-    body: "A QR pass is created only after `transaction.succeeded` is processed."
+    body: "A QR pass is created only after transaction.succeeded is processed."
   },
   {
     icon: BadgeCheck,
@@ -30,7 +30,7 @@ export function CheckoutSteps() {
         <p className="text-sm font-black uppercase tracking-[0.24em] text-[#14f195]">How KIRAPAY Checkout Works</p>
         <h2 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">No charge happens on this page.</h2>
         <p className="mt-4 text-base leading-7 text-white/62">
-          KiraPass creates the order, KIRAPAY handles checkout, and the ticket appears after confirmed payment.
+          KiraPass creates the order, KIRAPAY handles cross-chain payment from a supported chain or token, and the ticket appears after confirmed payment.
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-4">

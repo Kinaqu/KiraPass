@@ -20,12 +20,12 @@ const passCopy: Record<
   general: {
     tag: "Builder access",
     badge: "Best value",
-    reason: "Best for hackathon teams who want entry, demos, and QR-based access without extras."
+    reason: "Best for builders who need event access, demos, and a QR pass without extras."
   },
   vip: {
     tag: "Priority access",
     badge: "Best for networking",
-    reason: "Best for founders, ecosystem partners, and builders who want priority entry and the networking area.",
+    reason: "Best for founders and partners who want priority entry and networking access.",
     featured: true
   }
 };
@@ -66,14 +66,15 @@ export function TicketingExperience() {
                 Choose the right pass.
               </h2>
               <p className="mt-5 text-lg leading-8 text-white/66">
-                Review your pass first, then continue to KIRAPAY. QR tickets are issued after confirmed payment.
+                Review your pass and public price first. Continue to KIRAPAY only when ready; QR tickets are issued after confirmed payment.
               </p>
             </div>
             <ul className="space-y-3">
               {[
                 "No automatic charge on this page",
-                "Server validates the final amount",
-                "QR ticket appears after KIRAPAY webhook"
+                "No hidden KiraPass checkout fees",
+                "Server validates the order before redirect",
+                "QR ticket appears after KIRAPAY confirms payment"
               ].map((note) => (
                 <li key={note} className="flex items-center gap-3 text-sm font-bold text-white/64">
                   <CheckCircle2 className="size-4 text-[#14f195]" />
@@ -144,6 +145,9 @@ function TicketPanel({
             <span className="text-5xl font-black tracking-tight">${ticket.amount}</span>
             <span className="pb-1 text-sm font-bold text-white/42">USD</span>
           </div>
+          <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-[#14f195]">
+            {ticketType === "general" ? "Fits under a $20 budget" : "Priority networking pick"}
+          </p>
           <p className="mt-5 text-sm font-semibold leading-6 text-white/62">{copy.reason}</p>
           <div className="mt-6 space-y-2 text-sm font-bold text-white/62">
             {ticket.features.map((feature) => (

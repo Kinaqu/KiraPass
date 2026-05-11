@@ -4,6 +4,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 const statuses = ["active", "used", "refunded", "cancelled"];
 
 export function QRVerificationPreview() {
+  const attendeeFlow = ["Pay online", "Get QR pass", "Show at door", "Organizer verifies"];
+
   return (
     <section className="relative z-10 mx-auto grid max-w-7xl gap-8 px-5 py-4 sm:px-8 lg:grid-cols-[0.92fr_1.08fr]">
       <div>
@@ -12,8 +14,18 @@ export function QRVerificationPreview() {
           The QR pass proves entry at the door.
         </h2>
         <p className="mt-5 max-w-xl text-base leading-7 text-white/62">
-          Every issued ticket links to `/verify/[ticketCode]`. Staff can verify status and check in an active pass once.
+          After webhook confirmation, your QR pass becomes available. Show it at the door for one-use verification.
         </p>
+        <div className="mt-6 grid gap-2 sm:grid-cols-2">
+          {attendeeFlow.map((step, index) => (
+            <div key={step} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.045] p-3 text-sm font-black text-white/74">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#14f195]/12 text-xs text-[#d9fff0]">
+                {index + 1}
+              </span>
+              {step}
+            </div>
+          ))}
+        </div>
       </div>
       <div className="grid gap-4 md:grid-cols-[280px_1fr]">
         <div className="rounded-[1.5rem] border border-white/10 bg-white p-4 text-slate-950">
