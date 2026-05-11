@@ -236,7 +236,7 @@ async function createCheckout(rawInput: unknown, env: Env) {
       .run();
     throw error;
   });
-  const linkIdentity = await resolveKiraPayLinkIdentity(link.data, env);
+  const linkIdentity = resolveKiraPayLinkIdentity(link.data);
 
   await env.DB.prepare(
     `UPDATE orders
@@ -548,32 +548,10 @@ async function createKiraPayLink(input: Record<string, unknown>, env: Env): Prom
   return { data };
 }
 
-async function resolveKiraPayLinkIdentity(linkData: KiraPayLinkResult["data"], env: Env): Promise<KiraPayLinkIdentity> {
+function resolveKiraPayLinkIdentity(linkData: KiraPayLinkResult["data"]): KiraPayLinkIdentity {
   const code = linkData.code ?? parseKiraPayLinkCode(linkData.url);
   const directId = linkData.id ?? linkData._id;
-  if (!code) return { id: directId };
-
-  const details = await getKiraPayLinkByCode(code, env).catch(() => null);
-  return {
-    code: details?.code ?? code,
-    id: details?.id ?? directId
-  };
-}
-
-async function getKiraPayLinkByCode(code: string, env: Env) {
-  const response = await fetch(kiraPayApiUrl(env, `/link/${encodeURIComponent(code)}`), {
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": requireEnv(env.KIRAPAY_API_KEY, "KIRAPAY_API_KEY")
-    }
-  });
-  const payload = (await response.json().catch(() => null)) as { data?: Record<string, unknown> } | null;
-  if (!response.ok) return null;
-  const data = payload?.data ?? {};
-  return {
-    code: stringOrNull(data.code) ?? code,
-    id: stringOrNull(data._id) ?? stringOrNull(data.id) ?? undefined
-  };
+  return { code: code ?? undefined, id: directId };
 }
 
 function parseKiraPayLinkCode(url: string) {
