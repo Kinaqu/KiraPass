@@ -24,6 +24,8 @@ export function OrganizerDashboard() {
   const [submittedPasscode, setSubmittedPasscode] = useState("");
   const [needsPasscode, setNeedsPasscode] = useState(false);
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileMessage, setReconcileMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -90,6 +92,30 @@ export function OrganizerDashboard() {
     }
   }
 
+  async function reconcile() {
+    setReconciling(true);
+    setError(null);
+    setReconcileMessage(null);
+    try {
+      const response = await fetch(apiUrl("/api/reconcile/kirapay"), {
+        method: "POST",
+        headers: submittedPasscode ? { "x-organizer-passcode": submittedPasscode } : {}
+      });
+      const data = (await response.json()) as { checked?: number; reconciled?: unknown[]; message?: string };
+      if (!response.ok) throw new Error(data.message ?? "Reconciliation failed");
+      setReconcileMessage(`Checked ${data.checked ?? 0}, reconciled ${data.reconciled?.length ?? 0}.`);
+      const refreshed = await fetch(apiUrl("/api/organizer/attendees"), {
+        headers: submittedPasscode ? { "x-organizer-passcode": submittedPasscode } : {}
+      });
+      const refreshedData = (await refreshed.json()) as DashboardPayload;
+      if (refreshed.ok) setPayload(refreshedData);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Reconciliation failed");
+    } finally {
+      setReconciling(false);
+    }
+  }
+
   if (error) return <div className="glass rounded-2xl p-6 text-red-100">{error}</div>;
   if (needsPasscode) {
     return (
@@ -122,7 +148,18 @@ export function OrganizerDashboard() {
 
   return (
     <>
-      <OrganizerMetrics metrics={payload.metrics} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <OrganizerMetrics metrics={payload.metrics} />
+        <button
+          type="button"
+          onClick={reconcile}
+          disabled={reconciling}
+          className="inline-flex h-11 items-center justify-center rounded-lg border border-emerald-300/30 px-4 text-sm font-black text-emerald-100 hover:bg-emerald-300/10 disabled:opacity-45"
+        >
+          {reconciling ? "Reconciling..." : "Reconcile KIRAPAY"}
+        </button>
+      </div>
+      {reconcileMessage ? <p className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/8 p-3 text-sm text-emerald-100">{reconcileMessage}</p> : null}
       <div className="mt-6">
         <AttendeeTable rows={payload.attendees} onRefund={refund} refundingOrderId={refundingOrderId} />
       </div>
@@ -144,21 +181,26 @@ function WebhookDebugPanel({ webhooks }: { webhooks: WebhookEventRecord[] }) {
       </div>
       <div className="mt-4 grid gap-2">
         {webhooks.slice(0, 6).map((webhook) => (
-          <div key={webhook.id} className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-bold">{webhook.eventType}</p>
-              <p className="mt-1 text-xs text-white/42">{webhook.orderId ?? webhook.kirapayTransactionId ?? webhook.id}</p>
-            </div>
-            <div className="text-sm font-bold">
-              {webhook.processingError ? (
-                <span className="text-red-100">{webhook.processingError}</span>
-              ) : webhook.processed ? (
-                <span className="text-emerald-200">Processed</span>
-              ) : (
-                <span className="text-yellow-100">Stored</span>
-              )}
-            </div>
-          </div>
+          <details key={webhook.id} className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+            <summary className="flex cursor-pointer flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                <span className="block font-bold">{webhook.eventType}</span>
+                <span className="mt-1 block text-xs text-white/42">{webhook.orderId ?? webhook.kirapayTransactionId ?? webhook.id}</span>
+              </span>
+              <span className="text-sm font-bold">
+                {webhook.processingError ? (
+                  <span className="text-red-100">{webhook.processingError}</span>
+                ) : webhook.processed ? (
+                  <span className="text-emerald-200">Processed</span>
+                ) : (
+                  <span className="text-yellow-100">Stored</span>
+                )}
+              </span>
+            </summary>
+            <pre className="mt-3 max-h-72 overflow-auto rounded-lg border border-white/8 bg-slate-950/60 p-3 text-xs leading-5 text-white/62">
+              {JSON.stringify(webhook.rawPayload, null, 2)}
+            </pre>
+          </details>
         ))}
         {webhooks.length === 0 ? <p className="text-sm text-white/45">No webhook events stored yet.</p> : null}
       </div>

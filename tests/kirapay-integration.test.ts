@@ -45,9 +45,9 @@ describe("KIRAPAY integration guardrails", () => {
   });
 
   it("persists recoverable KIRAPAY link identity for redirect and webhook reconciliation", () => {
-    expect(worker).toContain("resolveKiraPayLinkIdentity(link.data)");
+    expect(worker).toContain("resolveKiraPayLinkIdentity(link.data, env)");
     expect(worker).toContain("parseKiraPayLinkCode");
-    expect(worker).not.toContain('kiraPayApiUrl(env, `/link/${encodeURIComponent(code)}`)');
+    expect(worker).toContain('kiraPayApiUrl(env, `/link/${encodeURIComponent(code)}`)');
     expect(worker).toContain("kirapay_link_code = ?");
     expect(worker).toContain("kirapay_payment_link_id = ?");
   });
@@ -56,5 +56,13 @@ describe("KIRAPAY integration guardrails", () => {
     expect(worker).toContain('if (path === "/api/orders" && request.method === "GET")');
     expect(worker).toContain("getOrdersByEmail");
     expect(worker).toContain("mapPublicOrderLookup");
+  });
+
+  it("verifies and reconciles KIRAPAY transactions before issuing tickets", () => {
+    expect(worker).toContain("verifyKiraPayTransactionForOrder");
+    expect(worker).toContain("getRecentKiraPayTransactions");
+    expect(worker).toContain("transactionMatchesOrder");
+    expect(worker).toContain('path === "/api/reconcile/kirapay"');
+    expect(worker).toContain("reconcilePendingKiraPayOrders");
   });
 });

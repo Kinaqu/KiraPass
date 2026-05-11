@@ -12,6 +12,7 @@
     "d1:migrate:remote": "wrangler d1 migrations apply kirapass-db --remote --config worker/wrangler.toml",
     "kirapay:webhook:get": "node scripts/get-kirapay-webhook.mjs",
     "kirapay:webhook:register": "node scripts/register-kirapay-webhook.mjs",
+    "kirapay:reconcile": "node scripts/reconcile-kirapay-orders.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

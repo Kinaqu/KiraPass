@@ -16,6 +16,7 @@ describe("Cloudflare backend architecture", () => {
       "/api/tickets",
       "/api/tickets/verify",
       "/api/organizer/attendees",
+      "/api/reconcile/kirapay",
       "/api/refund"
     ]) {
       expect(worker).toContain(route);
@@ -31,6 +32,9 @@ describe("Cloudflare backend architecture", () => {
     const hardeningMigration = readFileSync(join(process.cwd(), "worker/migrations/0003_kirapay_webhook_hardening.sql"), "utf8");
     expect(hardeningMigration).toContain("processing_error");
     expect(hardeningMigration).toContain("processed_at");
+    const reconciliationMigration = readFileSync(join(process.cwd(), "worker/migrations/0004_kirapay_reconciliation.sql"), "utf8");
+    expect(reconciliationMigration).toContain("kirapay_expected_amount");
+    expect(reconciliationMigration).toContain("idx_orders_kirapay_payment_link_id");
   });
 
   it("keeps KIRAPAY secrets out of client components", () => {
