@@ -9,6 +9,7 @@ const eventJsonLd = {
   name: frontierEvent.title,
   description: frontierEvent.description,
   startDate: frontierEvent.date,
+  endDate: "2026-05-18T23:00:00.000Z",
   eventStatus: "https://schema.org/EventScheduled",
   eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
   url: eventUrl,
@@ -32,6 +33,7 @@ const eventJsonLd = {
       price: ticketCatalog.general.amount,
       priceCurrency: "USD",
       availability: "https://schema.org/InStock",
+      validFrom: "2026-05-07T00:00:00.000Z",
       url: `${eventUrl}#tickets`
     },
     {
@@ -40,6 +42,7 @@ const eventJsonLd = {
       price: ticketCatalog.vip.amount,
       priceCurrency: "USD",
       availability: "https://schema.org/InStock",
+      validFrom: "2026-05-07T00:00:00.000Z",
       url: `${eventUrl}#tickets`
     }
   ]

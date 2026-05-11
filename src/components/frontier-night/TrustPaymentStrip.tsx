@@ -4,22 +4,22 @@ const steps = [
   {
     icon: ShieldCheck,
     title: "Review first",
-    body: "Choose a pass, confirm your email, and approve the next step."
+    body: "Choose a pass, confirm your email, and approve the KIRAPAY redirect."
   },
   {
     icon: WalletCards,
     title: "KIRAPAY checkout",
-    body: "You leave only after clicking Continue to KIRAPAY."
+    body: "Pay from a supported chain or token without a manual bridge step in KiraPass."
   },
   {
     icon: CheckCircle2,
     title: "Webhook confirmed",
-    body: "KiraPass waits for KIRAPAY confirmation before issuing access."
+    body: "The return page can show pending while KiraPass waits for confirmation."
   },
   {
     icon: QrCode,
     title: "QR issued",
-    body: "Your ticket points to a one-use verification screen."
+    body: "After confirmed payment, your pass is ready for one-use door verification."
   }
 ];
 

@@ -78,6 +78,7 @@ type TicketRow = {
 
 const FRONTIER_EVENT_ID = "event_frontier_night_2026";
 const KIRAPAY_BASE_URL = "https://api.kira-pay.com/api";
+const FRONTIER_DEMO_PAYMENT_DIVISOR = 100;
 
 const checkoutSchema = z.object({
   eventId: z.string().optional().default(FRONTIER_EVENT_ID),
@@ -183,6 +184,7 @@ async function createCheckout(rawInput: unknown, env: Env) {
   const amount = getTicketPrice(event, input.ticketType);
   const addOns = getAddOns(input.addOns);
   const totalAmount = amount + addOns.reduce((sum, addOn) => sum + addOn.amount, 0);
+  const paymentTotalAmount = getKiraPayPaymentAmount(event.id, totalAmount);
   const now = isoNow();
 
   await env.DB.prepare(
@@ -214,7 +216,7 @@ async function createCheckout(rawInput: unknown, env: Env) {
         address: requireEnv(env.SETTLEMENT_TOKEN_ADDRESS, "SETTLEMENT_TOKEN_ADDRESS")
       },
       receiver: requireEnv(env.MERCHANT_WALLET_ADDRESS, "MERCHANT_WALLET_ADDRESS"),
-      originalPrice: totalAmount,
+      originalPrice: paymentTotalAmount,
       fiatCurrency: "USD",
       name: `KiraPass ${getTicketLabel(input.ticketType)} - ${event.title}`,
       customOrderId: orderId,
@@ -796,6 +798,15 @@ function mapWebhookEvent(row: Record<string, unknown>) {
 
 function getTicketPrice(event: EventRow, ticketType: TicketType) {
   return ticketType === "vip" ? Number(event.vip_price) : Number(event.general_price);
+}
+
+function getKiraPayPaymentAmount(eventId: string, publicTotalAmount: number) {
+  if (eventId !== FRONTIER_EVENT_ID) return roundCurrency(publicTotalAmount);
+  return roundCurrency(publicTotalAmount / FRONTIER_DEMO_PAYMENT_DIVISOR);
+}
+
+function roundCurrency(amount: number) {
+  return Math.round(amount * 100) / 100;
 }
 
 function getTicketLabel(ticketType: TicketType) {

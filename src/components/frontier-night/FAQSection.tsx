@@ -4,8 +4,16 @@ const faqs = [
     answer: "No. You review the pass first, then explicitly continue to KIRAPAY checkout."
   },
   {
+    question: "What if payment is pending?",
+    answer: "KIRAPAY may redirect before the webhook arrives. The status page updates when confirmation is received."
+  },
+  {
     question: "When is the QR ticket issued?",
     answer: "Only after KIRAPAY confirms payment through the webhook."
+  },
+  {
+    question: "Do I need to bridge tokens manually?",
+    answer: "No. KIRAPAY handles checkout from a supported chain or token outside the KiraPass page."
   },
   {
     question: "Can a ticket be reused?",

@@ -10,21 +10,27 @@ type ConciergeResult = {
 };
 
 const suggestions = [
-  "VIP under $40",
+  "Cheapest ticket",
   "Best networking",
-  "2 general passes",
   "Under $20",
-  "Reserve VIP"
+  "VIP pass",
+  "Founder access"
 ];
 
 function parseIntent(value: string): ConciergeResult | null {
   const input = value.toLowerCase().trim();
   if (!input) return null;
 
-  if (input.includes("under $20") || input.includes("under 20") || input.includes("general") || input.includes("value")) {
+  if (
+    input.includes("under $20") ||
+    input.includes("under 20") ||
+    input.includes("general") ||
+    input.includes("value") ||
+    input.includes("cheap")
+  ) {
     return {
       ticketType: "general",
-      reason: "General Pass matches the lower-budget request."
+      reason: "General Pass matches the lower-budget request and keeps the visible ticket price under $20."
     };
   }
 
@@ -60,7 +66,7 @@ export function ConciergeBar({
   onSelect: (ticketType: TicketType, reason: string) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [message, setMessage] = useState("Try “VIP under $40” or “best networking”.");
+  const [message, setMessage] = useState("Try “best networking”, “under $20”, or “cheapest ticket”.");
 
   const activeLabel = useMemo(() => {
     if (selectedTicket === "vip") return "VIP Builder Pass selected";
@@ -71,7 +77,7 @@ export function ConciergeBar({
   function runIntent(value: string) {
     const result = parseIntent(value);
     if (!result) {
-      setMessage("I can route simple requests like general, VIP, under $20, or best networking.");
+      setMessage("I can route simple requests like general, VIP, under $20, cheapest ticket, or best networking.");
       return;
     }
     onSelect(result.ticketType, result.reason);
@@ -96,7 +102,7 @@ export function ConciergeBar({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Tell KiraPass what you want, e.g. best networking"
+              placeholder="Try: best networking, under $20, VIP pass, or cheapest ticket"
               className="h-14 w-full rounded-2xl border border-white/12 bg-white/[0.055] pl-12 pr-4 text-base font-semibold text-white outline-none transition placeholder:text-white/32 focus:border-[#14f195]/55"
             />
           </label>
